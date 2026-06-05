@@ -7,9 +7,9 @@
  * (derived from the mover's topics/category) plus optional platform / follower
  * band / seed handle; output is a lean list of `CreatorCandidate`s.
  *
- * Adapted from storehaus `creator-discovery.ts` (apidojo search-by-keyword,
- * per-platform budget split, dedupe by handle, post-scrape follower filter).
- * We do NOT score / rank / auto-drop — the candidates are surfaced as data.
+ * The approach: apidojo search-by-keyword, per-platform budget split, dedupe by
+ * handle, post-scrape follower filter. We do NOT score / rank / auto-drop — the
+ * candidates are surfaced as data.
  *
  * Two paths, in priority order:
  *   PRIMARY (real data) — if APIFY_TOKEN is set, run the apidojo Instagram /

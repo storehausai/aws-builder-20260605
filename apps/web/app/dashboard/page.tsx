@@ -67,6 +67,7 @@ export default function DashboardPage() {
         onNewChat={() => router.push("/chat")}
         onNavigateToTask={(id) => router.push(`/chat/${id}`)}
         onNavigateToDashboard={() => {}}
+        onNavigateToInfluencers={() => router.push("/influencers")}
         activeTaskId={null}
       />
 

@@ -1,7 +1,7 @@
 /**
  * generatePanel — the AI "dashboard artifact" (Claude-Artifacts style).
  *
- * This is the shipping mechanism pebble actually uses for its right-hand panel:
+ * This is the shipping mechanism for the right-hand panel:
  * the agent GROUNDS a small data bundle on REAL discovery output (the ranked
  * influencers + brand), then asks the Butterbase AI gateway to write a COMPLETE,
  * self-contained HTML document. The web app renders that string verbatim in a
@@ -103,7 +103,7 @@ function hostFromUrl(url?: string): string | null {
  * can't override the model's default house style), explicit anti-truncation,
  * and a grounding stack (provided-data-only + render N/A, never fabricate).
  *
- * The design system is pebble's real, shipped dashboard aesthetic: a restrained
+ * The design system is a restrained, editorial dashboard aesthetic: a refined
  * Notion-editorial look, not the generic dark-glassmorphism the model defaults
  * to. Keep this in lockstep with `staticPanelHtml` below.
  */
@@ -234,7 +234,7 @@ function esc(s: string): string {
 
 /**
  * Hand-built, grounded HTML dashboard used when the AI path is unavailable.
- * Same pebble Notion-editorial design system the AI prompt specifies, so the
+ * Same Notion-editorial design system the AI prompt specifies, so the
  * panel looks consistent whichever path renders it.
  */
 export function staticPanelHtml(title: string, bundle: PanelBundle): string {

@@ -152,7 +152,7 @@ process.on("uncaughtException", (err) => {
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(
     `[engine] listening on http://localhost:${info.port}` +
-      (USE_FIXTURES ? " (ENGINE_FIXTURES=1 — reading pebble fixture, no Butterbase)" : ""),
+      (USE_FIXTURES ? " (ENGINE_FIXTURES=1 — reading local fixture, no Butterbase)" : ""),
   );
 });
 

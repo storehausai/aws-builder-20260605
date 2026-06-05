@@ -1,5 +1,5 @@
 /**
- * @pebble/bb — Butterbase backend access (replaces @pebble/db).
+ * @pebble/bb — Butterbase backend access.
  * Canonical data layer + AI gateway + storage, on a Supabase-shaped SDK.
  */
 export { createBb, unwrap, unwrapMaybe, type Bb, type BbOptions } from "./client.js";

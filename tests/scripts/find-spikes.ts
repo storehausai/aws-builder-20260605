@@ -1,6 +1,8 @@
 import { detectSpikes } from "@pebble/engine";
 import { readFileSync } from "node:fs";
-const fx = JSON.parse(readFileSync("/Users/myoons/Gilbreth/pebble/apps/web/app/api/real-panel/rael-bsr-daily.json","utf8"));
+const fixturePath = process.env.ENGINE_FIXTURE_PATH;
+if (!fixturePath) throw new Error("set ENGINE_FIXTURE_PATH to a bsr-daily fixture JSON");
+const fx = JSON.parse(readFileSync(fixturePath, "utf8"));
 let withSpikes = 0;
 for (const row of fx.rows) {
   const ranks:number[]=[]; let last=0; for(const r of row.dailyRanks){ if(r!=null) last=r; ranks.push(r??last);}

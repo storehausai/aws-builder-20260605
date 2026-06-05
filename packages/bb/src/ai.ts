@@ -3,7 +3,7 @@ import type { Bb } from "./client.js";
 import { unwrap } from "./client.js";
 
 /**
- * The Butterbase AI gateway — pebble's ONLY LLM path (replaces lib/ai.ts).
+ * The Butterbase AI gateway — the app's ONLY LLM path.
  * Unified, OpenAI-compatible access to Claude / GPT / Gemini via `provider/model`.
  */
 export const DEFAULT_MODEL = process.env.BB_MODEL ?? "anthropic/claude-sonnet-4.6";

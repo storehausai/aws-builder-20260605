@@ -11,9 +11,9 @@ import { upsertRows, upsertReturning, insertReturning } from "./upsert.js";
 
 /**
  * Real IngestionWriter on Butterbase — the idempotent cache (Track A seam).
- * Ported from @pebble/db (Supabase). Every write is an upsert on a natural key
- * (emulated via @pebble/bb upsert), so re-running a tool MERGES instead of
- * duplicating — we never re-pay an API for data we already hold.
+ * Every write is an upsert on a natural key (emulated via @pebble/bb upsert),
+ * so re-running a tool MERGES instead of duplicating — we never re-pay an API
+ * for data we already hold.
  */
 export function createIngestionWriter(bb: Bb): IngestionWriter {
   async function ensureProvider(providerId: ProviderId, kind: string): Promise<void> {

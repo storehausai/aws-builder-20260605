@@ -2,11 +2,8 @@
  * engine-data — read canonical data from Butterbase (@pebble/bb) and shape it
  * into the engine's MarketMoverInput, then run findMarketMovers.
  *
- * Ported from pebble's apps/web/lib/panel-data/marketMover.ts
- * (buildMarketMoverArtifactDb / buildSpikeContentArtifactDb), adapted from
- * Supabase to @pebble/bb's query builder. The big simplification vs pebble:
- * pebble assembles a multi-product *dashboard artifact* (its own SpikeMarker /
- * MarketMoverArtifact shapes). Here we feed the PURE engine its native
+ * Rather than assembling a multi-product *dashboard artifact* (SpikeMarker /
+ * MarketMoverArtifact shapes), we feed the PURE engine its native
  * MarketMoverInput (one product series + dated content) and return the engine's
  * own MarketMoverResult verbatim — that's the contract RocketRide depends on.
  */
@@ -56,7 +53,7 @@ type SnapshotRow = { snapshot_date: string; rank: number | null; price: number |
  *
  * Single-product focus: the pure engine's MarketMoverInput is one product. When
  * a brand resolves to several products we pick the flagship (best/lowest rank)
- * — the strongest mover — matching pebble's flagship selection in buildBundle.
+ * — the strongest mover.
  */
 export async function runMarketMover(req: MarketMoverRequest): Promise<MarketMoverResult> {
   const bb = createBb();
@@ -108,7 +105,7 @@ export async function runMarketMover(req: MarketMoverRequest): Promise<MarketMov
 
   // 5) Read the brand's creator content (mentions). Resilient: any failure or
   //    missing brand → empty content → the engine still runs and returns
-  //    "unexplained" verdicts (degrades exactly like pebble's step 2).
+  //    "unexplained" verdicts (degrades gracefully to a no-signal result).
   const content = await readContent(bb, brandId);
 
   const input: MarketMoverInput = {
@@ -175,7 +172,7 @@ function pickFlagship(
 
 /**
  * Read brand_mention rows in the brand and normalize to CreatorMention[].
- * Mirrors pebble's brand_mention read but unscoped by window — the engine does
+ * Reads brand_mention unscoped by window — the engine does
  * its own per-spike windowing, so we hand it all the brand's content. Any error
  * → empty content (resilient).
  */
@@ -229,8 +226,8 @@ export class EngineDataError extends Error {
 
 /**
  * Optional fixtures fallback (ENGINE_FIXTURES=1) so the endpoints are
- * smoke-testable with NO Butterbase configured. Reuses pebble's real Rael BSR
- * daily panel: { days[], rows[{ asin, title, price, dailyRanks[] }] }. We pick
+ * smoke-testable with NO Butterbase configured. Reads a local BSR daily panel
+ * fixture: { days[], rows[{ asin, title, price, dailyRanks[] }] }. We pick
  * the flagship row and run the same engine. There's no creator content in the
  * fixture, so verdicts are "unexplained" — that still exercises spike detection
  * + the price gate end-to-end.
@@ -321,9 +318,11 @@ const bestRank = (r: FixtureRow): number =>
 let fixtureCache: Fixture | null | undefined;
 async function loadFixture(): Promise<Fixture | null> {
   if (fixtureCache !== undefined) return fixtureCache;
-  const path =
-    process.env.ENGINE_FIXTURE_PATH ??
-    "/Users/myoons/Gilbreth/pebble/apps/web/app/api/real-panel/rael-bsr-daily.json";
+  const path = process.env.ENGINE_FIXTURE_PATH;
+  if (!path) {
+    fixtureCache = null;
+    return fixtureCache;
+  }
   try {
     const { readFile } = await import("node:fs/promises");
     const raw = await readFile(path, "utf8");

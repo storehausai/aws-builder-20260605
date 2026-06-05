@@ -14,8 +14,9 @@ engine's `MarketMoverInput`, runs `findMarketMovers`, and returns the engine's
 # against Butterbase (needs env, see below)
 pnpm --filter @pebble/engine-service dev
 
-# smoke test with NO Butterbase configured — reads pebble's real Rael fixture
-ENGINE_FIXTURES=1 pnpm --filter @pebble/engine-service dev
+# smoke test with NO Butterbase configured — reads a local BSR fixture
+# (set ENGINE_FIXTURE_PATH to point at the fixture JSON)
+ENGINE_FIXTURES=1 ENGINE_FIXTURE_PATH=./fixtures/bsr-daily.json pnpm --filter @pebble/engine-service dev
 ```
 
 Listens on `ENGINE_PORT` (default **8787**).
@@ -28,7 +29,7 @@ Listens on `ENGINE_PORT` (default **8787**).
 | `BUTTERBASE_APP_ID` (or `NEXT_PUBLIC_BUTTERBASE_APP_ID`) | Butterbase app id |
 | `BUTTERBASE_SERVICE_KEY` | service key (`bb_sk_…`, bypasses RLS — server only) |
 | `NEXT_PUBLIC_BUTTERBASE_API_URL` | API base (default `https://api.butterbase.ai`) |
-| `ENGINE_FIXTURES` | `1` → read the pebble fixture instead of Butterbase |
+| `ENGINE_FIXTURES` | `1` → read the local fixture instead of Butterbase |
 | `ENGINE_FIXTURE_PATH` | override the fixture path |
 
 `.env` is loaded automatically (`dotenv`).

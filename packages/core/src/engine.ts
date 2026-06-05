@@ -1,14 +1,13 @@
 /**
- * Engine CONTRACTS — ported from storehaus `inertia`, redesigned to be PURE
- * and stateless: the engine takes plain series + mentions and returns plain
- * results. It knows nothing about Supabase, stores, fixtures, or the panel.
- * Concrete implementations live in @pebble/engine (Track B). The engine NEVER
- * imports @pebble/providers.
+ * Engine CONTRACTS — PURE and stateless: the engine takes plain series +
+ * mentions and returns plain results. It knows nothing about Supabase, stores,
+ * fixtures, or the panel. Concrete implementations live in @pebble/engine
+ * (Track B). The engine NEVER imports @pebble/providers.
  *
- * Improvements over inertia (designed into the types):
+ * Design properties (baked into the types):
  *  - parameterized (no hardcoded options/store/window)
  *  - decoupled from DB rows (CreatorMention, not a raw mention row)
- *  - confidence on every scored creator (vs inertia's binary attribution)
+ *  - confidence on every scored creator (not just a binary attribution)
  *  - product/date mapping is the orchestrator's job, not the detector's
  */
 
@@ -23,7 +22,7 @@ export interface RankSeriesInput {
   categoryMedianReturns?: number[];
 }
 
-/** All optional; defaults match inertia's daily detector. */
+/** All optional; daily-detector defaults. */
 export interface SpikeDetectionOptions {
   windowRadius?: number; // 28
   zThreshold?: number; // -5 (negative = improvement)
@@ -90,7 +89,7 @@ export interface ScoredCreator {
   followers: number | null;
   /** log10(reach) + 0.15·reactionσ + 0.5·log2(mentions+1). */
   compositeSigma: number;
-  /** 0..1 — IMPROVEMENT over inertia's binary attribution. */
+  /** 0..1 — richer than a binary attribution flag. */
   confidence: number;
   reaction: StageOutlier;
   followerInflow: StageOutlier;

@@ -1,10 +1,10 @@
 import type { CreatorMention, ScoreCascade, ScoredCreator, StageOutlier } from "@pebble/core";
 
 /**
- * Creator cascade — a real (simplified) port of inertia's influencer-cascade.
+ * Creator cascade — a simplified influencer-cascade scorer.
  * Groups real mentions by creator and scores an engagement composite:
  *   compositeSigma = log10(reach+1) + 0.15·reactionσ + 0.5·log2(mentions+1)
- * Adds a real confidence (0..1) — the improvement over inertia's binary flag.
+ * Adds a real confidence (0..1) rather than a binary flag.
  */
 
 function mean(xs: number[]): number {

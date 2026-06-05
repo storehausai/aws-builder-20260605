@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 
 /**
  * Client-side, session-scoped chat store (localStorage + a tiny
- * pub/sub). Stands in for pebble's supabase/react-query chat data layer:
+ * pub/sub). Provides the chat data layer:
  * the sidebar history, new-chat, rename and archive all read/write here.
  * Messages live per-chat so a refresh keeps the conversation; everything
  * stays within the browser session as the spec allows.

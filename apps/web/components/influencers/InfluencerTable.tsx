@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Instagram, Music2, Youtube, AtSign } from "lucide-react";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { InfluencerDetailSheet } from "@/components/influencers/InfluencerDetailSheet";
 import {
   NOTION_TEXT,
   NOTION_TEXT_MUTED,
@@ -62,9 +63,14 @@ function statusColor(status: string): string {
 
 export function InfluencerTable({
   influencers,
+  storeId,
 }: {
   influencers: StoredInfluencer[];
+  storeId: string;
 }) {
+  const [selected, setSelected] = useState<StoredInfluencer | null>(null);
+  const [open, setOpen] = useState(false);
+
   const columns = useMemo<DataTableColumn<StoredInfluencer>[]>(
     () => [
       {
@@ -179,12 +185,24 @@ export function InfluencerTable({
   );
 
   return (
-    <DataTable<StoredInfluencer>
-      columns={columns}
-      data={influencers}
-      rowKey="id"
-      defaultSort={{ key: "score", desc: true }}
-      searchable={{ placeholder: "Search influencers…" }}
-    />
+    <>
+      <DataTable<StoredInfluencer>
+        columns={columns}
+        data={influencers}
+        rowKey="id"
+        defaultSort={{ key: "score", desc: true }}
+        searchable={{ placeholder: "Search influencers…" }}
+        onRowClick={(row) => {
+          setSelected(row);
+          setOpen(true);
+        }}
+      />
+      <InfluencerDetailSheet
+        influencer={selected}
+        storeId={storeId}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
   );
 }

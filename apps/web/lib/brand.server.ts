@@ -7,7 +7,7 @@ import {
 } from "@pebble/bb";
 import type { InfluencerSuggestion } from "@pebble/pipelines";
 import type { BrandOnboarding } from "@pebble/providers";
-import type { StoredInfluencer } from "@/lib/api";
+import type { StoredInfluencer, OutreachMessage } from "@/lib/api";
 
 /**
  * Shared Butterbase persistence helpers for the brand / onboarding /
@@ -255,6 +255,56 @@ export async function listCandidates(
   }
 }
 
+/**
+ * Read the full outreach conversation for one influencer candidate, oldest
+ * first — every message across all of the candidate's threads (outbound DMs +
+ * inbound replies). Best-effort: returns [] on any failure. Powers the
+ * influencer detail drawer's message history.
+ */
+export async function listInfluencerMessages(
+  storeId: string,
+  candidateId: string,
+): Promise<OutreachMessage[]> {
+  const bb = tryCreateBb();
+  if (!bb) return [];
+  try {
+    const threads = (unwrapMaybe(
+      await bb
+        .from("outreach_thread")
+        .select("id")
+        .eq("store_id", storeId)
+        .eq("candidate_id", candidateId),
+    ) ?? []) as { id: string }[];
+
+    if (threads.length === 0) return [];
+
+    const messages: OutreachMessage[] = [];
+    for (const thread of threads) {
+      const rows = (unwrapMaybe(
+        await bb
+          .from("outreach_message")
+          .select("id, direction, channel, body, sent_at")
+          .eq("thread_id", thread.id)
+          .order("sent_at", { ascending: true }),
+      ) ?? []) as RawMessage[];
+      for (const r of rows) {
+        messages.push({
+          id: r.id,
+          direction: r.direction === "inbound" ? "inbound" : "outbound",
+          channel: r.channel ?? "instagram",
+          body: r.body ?? "",
+          sentAt: r.sent_at ?? "",
+        });
+      }
+    }
+
+    return messages.sort((a, b) => a.sentAt.localeCompare(b.sentAt));
+  } catch (err) {
+    console.warn("[brand.server] listInfluencerMessages failed:", err);
+    return [];
+  }
+}
+
 /** Resolve a candidate id by (store_id, handle), or null when absent. */
 export async function findCandidateId(
   bb: Bb,
@@ -331,6 +381,14 @@ export async function recordOutreach(
 }
 
 /* ------------------------------- helpers ------------------------------- */
+
+interface RawMessage {
+  id: string;
+  direction?: string | null;
+  channel?: string | null;
+  body?: string | null;
+  sent_at?: string | null;
+}
 
 interface RawCandidate {
   id: string;

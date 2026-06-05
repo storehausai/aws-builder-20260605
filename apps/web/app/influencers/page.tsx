@@ -73,7 +73,7 @@ export default function InfluencersPage() {
             {influencers === null ? (
               <TableSkeleton />
             ) : (
-              <InfluencerTable influencers={influencers} />
+              <InfluencerTable influencers={influencers} storeId={storeId} />
             )}
           </div>
         </div>

@@ -27,6 +27,15 @@ export interface StoredInfluencer {
   createdAt: string;
 }
 
+/** A single outreach message in an influencer's conversation history. */
+export interface OutreachMessage {
+  id: string;
+  direction: "inbound" | "outbound";
+  channel: string;
+  body: string;
+  sentAt: string;
+}
+
 export interface DiscoveryResult {
   steps: string[];
   reply: string;
@@ -121,6 +130,19 @@ export async function getInfluencers(
   if (!res.ok) return [];
   const body = (await res.json()) as { influencers?: StoredInfluencer[] };
   return body.influencers ?? [];
+}
+
+export async function getInfluencerMessages(
+  storeId: string,
+  influencerId: string,
+): Promise<OutreachMessage[]> {
+  const res = await fetch(
+    `/api/influencers/${encodeURIComponent(influencerId)}/messages?storeId=${encodeURIComponent(storeId)}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as { messages?: OutreachMessage[] };
+  return body.messages ?? [];
 }
 
 export function outreach(input: {

@@ -197,15 +197,19 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
     steps.push(s);
   };
 
+  // (a) brand from its homepage (or inferred from free text).
   const brand = await stepOnboard(input, emit).catch((): BrandOnboarding => {
     emit("Couldn't fully read the homepage — proceeding on category signal.");
     return { brand: input.brandUrl ? hostname(input.brandUrl) : "your brand", category: "", summary: "", competitors: [], seedAsins: [], homepageUrl: input.brandUrl ?? "" };
   });
 
+  // (b) competitor products on Amazon.
+  stepAsins(brand, emit);
+
   // Discovery: the most-viral Instagram reels ABOUT THE BRAND (its own hashtag),
   // ranked by views → the top 6 creators behind them. Apify-only (apidojo cheap
   // listing + official-actor enrichment for real views/video/avatar); no deep
-  // pagination, no ScrapeCreators. Falls back to category lookalikes.
+  // pagination, no ScrapeCreators. Falls back to the engine / category lookalikes.
   // The rank/price chart is rendered separately from the engine (visuals layer).
   let influencers: InfluencerSuggestion[] = [];
   let reply = "";
@@ -245,12 +249,27 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
     };
   }
 
-  // Fallback: category-fit lookalikes (no keys, no recent burst, or no in-window creators).
+  // (c–h) ENGINE path: when brand-reel discovery surfaced no creators, ask the
+  // engine for the proven market mover — first the RocketRide HTTP engine
+  // (ENGINE_URL/market-movers), then the in-process LIVE Keepa engine if the
+  // HTTP one is unavailable. Then (i) find lookalikes of the mover and (j) rank.
+  // Degrades to category-fit creators (mover = null) when no mover can be proven.
   if (influencers.length === 0) {
-    emit("Falling back to category-fit creators.");
-    const candidates = await stepSimilar(brand, null, emit).catch(() => [] as CreatorCandidate[]);
-    influencers = buildSuggestions(null, candidates);
-    reply = buildReply(brand, null, influencers);
+    let mover = await stepMarketMover(brand, emit).catch(() => null);
+    if (!mover && haveKeepa) {
+      const live = await findMarketMoverLive({ brand, emit }).catch(() => null);
+      if (live?.mover) {
+        mover = {
+          handle: live.mover.handle,
+          followers: live.mover.followers ?? undefined,
+          sigma: live.mover.sigma,
+          evidence: live.mover.evidence,
+        };
+      }
+    }
+    const candidates = await stepSimilar(brand, mover, emit).catch(() => [] as CreatorCandidate[]);
+    influencers = buildSuggestions(mover, candidates);
+    reply = buildReply(brand, mover, influencers);
   }
 
   emit("Ranking the shortlist…");

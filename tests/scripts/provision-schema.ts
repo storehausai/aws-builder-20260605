@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createBb } from "@pebble/bb";
 
-const ROOT = "/Users/myoons/Gilbreth/aws-builder-storehaus";
+// Resolve the repo root relative to this script (tests/scripts/ → ../../).
+const ROOT =
+  process.env.REPO_ROOT ?? resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const schema = JSON.parse(readFileSync(`${ROOT}/butterbase/schema.json`, "utf8"));
 
 // Butterbase apply-DSL uses `primaryKey`, our file uses `primary`.

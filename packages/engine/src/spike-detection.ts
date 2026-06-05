@@ -1,9 +1,8 @@
 import type { DetectSpikes, RankSeriesInput, SpikeDetectionOptions, SpikeHit } from "@pebble/core";
 
 /**
- * Rolling Hampel spike detector — ported from storehaus inertia
- * (spike-detection.ts). Pure: a rank series in, index-based hits out. Daily
- * defaults match the inertia daily detector (amazon-data.ts).
+ * Rolling Hampel spike detector. Pure: a rank series in, index-based hits out.
+ * Tuned with daily-cadence defaults.
  */
 
 const HAMPEL_K = 0.6745;

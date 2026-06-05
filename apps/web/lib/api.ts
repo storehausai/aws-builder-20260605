@@ -16,8 +16,16 @@ export interface InfluencerSuggestion {
 export interface Visuals {
   brand?: { name: string; category?: string; logo?: string };
   competitors?: { name: string; logo?: string }[];
-  chart?: { points: { date: string; rank: number; spike: boolean }[]; productTitle?: string } | null;
-  creators?: { handle: string; avatar?: string; followers?: number; verified?: boolean; score?: number; rationale?: string }[];
+  chart?: {
+    points: { date: string; rank: number; price?: number | null; spike: boolean }[];
+    productTitle?: string;
+    competitor?: string;
+    productImage?: string;
+    rankFrom?: number;
+    rankTo?: number;
+    date?: string;
+  } | null;
+  creators?: { handle: string; avatar?: string; followers?: number; verified?: boolean; score?: number; rationale?: string; thumbnailUrl?: string; videoUrl?: string; postUrl?: string }[];
 }
 
 export interface DiscoveryResult {
@@ -114,6 +122,22 @@ export function discover(
   storeId?: string,
 ): Promise<DiscoveryResult> {
   return postJson<DiscoveryResult>("/api/discover", { text, storeId });
+}
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** Agentic chat turn — the model decides which tools (find/DM/replies) to run.
+ *  `shortlist` carries the creators already shown so follow-ups don't re-discover. */
+export function chat(
+  messages: ChatTurn[],
+  storeId?: string,
+  brand?: string,
+  shortlist?: InfluencerSuggestion[],
+): Promise<DiscoveryResult> {
+  return postJson<DiscoveryResult>("/api/chat", { messages, storeId, brand, shortlist });
 }
 
 export function outreach(input: {

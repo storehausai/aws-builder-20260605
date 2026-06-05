@@ -275,14 +275,14 @@ export async function runMarketMoverFromFixtures(
 
 /** Engine result + the rank series the UI charts (lower rank = better). */
 export type MarketMoverWithSeries = MarketMoverResult & {
-  series?: { dates: string[]; ranks: number[] };
+  series?: { dates: string[]; ranks: number[]; prices: Array<number | null> };
   spikeDates?: string[];
 };
 
 function withSeries(result: MarketMoverResult, input: MarketMoverInput): MarketMoverWithSeries {
   return {
     ...result,
-    series: { dates: input.series.dates, ranks: input.series.ranks },
+    series: { dates: input.series.dates, ranks: input.series.ranks, prices: input.series.prices },
     spikeDates: result.spikes.map((s) => s.date),
   };
 }

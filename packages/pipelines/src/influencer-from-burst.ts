@@ -19,14 +19,18 @@ import type { InfluencerSuggestion } from "./types.js";
 const SC_BASE = "https://api.scrapecreators.com";
 const DAY = 86400000;
 
+export interface ChartPoint { date: string; rank: number; price: number | null; spike: boolean; }
 export interface BurstContext {
   competitor: string;
   asin: string;
   productTitle: string;
+  productImage?: string;
   date: DateString;
   rankFrom: number;
   rankTo: number;
   z: number;
+  /** the winning product's daily rank+price series (for the chart). */
+  points?: ChartPoint[];
 }
 export interface BurstInfluencerResult {
   burst: BurstContext | null;
@@ -38,7 +42,7 @@ const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 /* ----------------------------- Instagram I/O ----------------------------- */
 
-interface IgPost { id: string; handle: string; takenMs: number; views: number; likes: number; comments: number; caption: string; url: string; isPaid: boolean; }
+interface IgPost { id: string; handle: string; takenMs: number; views: number; likes: number; comments: number; caption: string; url: string; isPaid: boolean; thumbnailUrl?: string; videoUrl?: string; avatarUrl?: string; }
 
 async function igHashtagPage(key: string, tag: string, cursor: number | string): Promise<{ posts: any[]; next: any }> {
   const u = `${SC_BASE}/v1/instagram/search/hashtag?hashtag=${encodeURIComponent(tag)}${cursor ? `&cursor=${cursor}` : ""}`;
@@ -73,6 +77,9 @@ function toIgPost(p: any): IgPost | null {
     caption: String(p.caption ?? "").slice(0, 120),
     url: String(p.url ?? (p.shortcode ? `https://www.instagram.com/p/${p.shortcode}/` : "")),
     isPaid: Boolean(p.is_paid_partnership),
+    thumbnailUrl: (p.display_url || p.thumbnail_src) ? String(p.display_url ?? p.thumbnail_src) : undefined,
+    videoUrl: p.is_video && p.video_url ? String(p.video_url) : undefined,
+    avatarUrl: p.owner?.profile_pic_url ? String(p.owner.profile_pic_url) : undefined,
   };
 }
 
@@ -188,6 +195,8 @@ export async function findInfluencersFromBurst(opts: {
   asinsPerCompetitor?: number;
   igPagesPerTag?: number;
   taggedPages?: number;
+  /** Only resolve the competitor-burst CHART (skip the Instagram creator search). */
+  chartOnly?: boolean;
   env?: Record<string, string | undefined>;
 }): Promise<BurstInfluencerResult> {
   const env = opts.env ?? process.env;
@@ -228,74 +237,78 @@ export async function findInfluencersFromBurst(opts: {
         for (const p of pts) { if (p.rank != null) last = p.rank; ranks.push(p.rank ?? last); }
         const prices = pts.map((p) => p.price ?? null);
         const res = findMarketMovers({ product: { asin }, series: { dates, ranks, prices }, content: [] });
-        const title = norm.products.find((p) => p.externalId === asin)?.title ?? asin;
+        const prod = norm.products.find((p) => p.externalId === asin);
+        const title = prod?.title ?? asin;
+        const spikeSet = new Set(res.spikes.filter((s) => s.gate === "passed").map((s) => s.date));
+        const points: ChartPoint[] = dates.map((dd, i) => ({ date: dd, rank: ranks[i] ?? 0, price: prices[i] ?? null, spike: spikeSet.has(dd) }));
         for (const s of res.spikes) {
           if (s.gate !== "passed") continue;
           const ms = Date.parse(`${s.date}T00:00:00Z`);
           if (ms < cutoff) continue;
           const strength = s.rankFrom - s.rankTo;
-          if (!best || strength > best.strength) best = { competitor, asin, productTitle: title, date: s.date, rankFrom: s.rankFrom, rankTo: s.rankTo, z: s.z, strength };
+          if (!best || strength > best.strength) best = { competitor, asin, productTitle: title, productImage: prod?.imageUrl ?? undefined, date: s.date, rankFrom: s.rankFrom, rankTo: s.rankTo, z: s.z, strength, points };
         }
       }
     } catch (e) { emit(`(${competitor}: ${(e as Error).message ?? "skipped"})`); }
   }
 
-  if (!best) { emit("No steady-price competitor burst in the last year — nothing to attribute."); return none; }
-  const D = Date.parse(`${best.date}T00:00:00Z`);
-  emit(`Biggest mover: ${best.competitor}'s "${best.productTitle.slice(0, 48)}" — Amazon #${best.rankFrom}→#${best.rankTo} on ${best.date} (price held). Looking for the creators behind it…`);
-
-  // 2) REAL brand content: the AUTHENTICATED Instagram TAGGED feed — genuine
-  //    posts that tagged the competitor brand (no hashtag-name ambiguity).
-  //    Falls back to hashtag search only if the tagged feed is empty/sparse.
-  const lo = D - 7 * DAY, hi = D + DAY;
-  let inWindow: IgPost[] = [];
-
-  const resolved = await resolveBrandHandle(best.competitor, env);
-  if (resolved) {
-    emit(`Pulling @${resolved.handle}'s Instagram tagged posts back to ${best.date}…`);
-    const tagged = await fetchTaggedFeed(resolved.pk, lo, opts.taggedPages ?? 15, env);
-    inWindow = tagged.filter((p) => p.takenMs >= lo && p.takenMs <= hi);
-    emit(`${tagged.length} tagged post(s) scanned · ${inWindow.length} in the 7-day pre-burst window.`);
+  // The burst (if any) picks WHICH competitor to search + gives the viz context;
+  // it is NOT a hard filter on creators (that was what zeroed the list).
+  const target = best ? best.competitor : competitors[0]!;
+  const D = best ? Date.parse(`${best.date}T00:00:00Z`) : 0;
+  if (best) {
+    emit(`Biggest competitor mover: ${best.competitor}'s "${best.productTitle.slice(0, 48)}" — Amazon #${best.rankFrom}→#${best.rankTo} on ${best.date} (price held).`);
   } else {
-    emit(`Couldn't resolve ${best.competitor}'s Instagram handle.`);
+    emit(`No clear Amazon burst — recommending top ${target} creators on Instagram.`);
   }
 
-  // Fallback: hashtag search + window filter when the tagged feed yields nothing.
-  if (inWindow.length === 0 && scKey) {
-    const seedTag = slugify(best.competitor).replace(/-/g, "");
-    emit(`Tagged feed thin — falling back to #${seedTag} search…`);
-    const mined = await mineHashtags(scKey, seedTag);
-    const tags = [seedTag, ...mined.filter((t) => t.includes(seedTag) || seedTag.includes(t)).filter((t) => t !== seedTag)].slice(0, 3);
-    const posts = await collectIg(scKey, tags, opts.igPagesPerTag ?? 15, emit);
-    inWindow = posts.filter((p) => p.takenMs >= lo && p.takenMs <= hi);
-  }
+  // chart-only: caller just wants the competitor burst series for the chart.
+  if (opts.chartOnly) return { burst: best, influencers: [] };
 
-  if (inWindow.length === 0) {
-    emit(`No in-window Instagram posts about ${best.competitor} — can't name the creators this time.`);
+  // 2) FIND CONTENT WITH HASHTAGS (no auth): search the competitor brand's
+  //    hashtag(s) on Instagram, mine variants, collect posts with engagement.
+  const seedTag = slugify(target).replace(/-/g, "");
+  emit(`Searching Instagram #${seedTag} for ${target} content…`);
+  const mined = await mineHashtags(scKey, seedTag);
+  const tags = [seedTag, ...mined.filter((t) => (t.includes(seedTag) || seedTag.includes(t)) && t !== seedTag)].slice(0, 3);
+  const posts = await collectIg(scKey, tags, opts.igPagesPerTag ?? 20, emit);
+
+  // Light relevance gate: caption mentions the brand (cuts common-name noise
+  // like people named "Cora") or it's a paid partnership. Ungated fallback if
+  // that leaves too few.
+  const relevant = posts.filter((p) => p.caption.toLowerCase().includes(seedTag) || p.isPaid);
+  const pool = relevant.length >= 3 ? relevant : posts;
+  if (pool.length === 0) {
+    emit(`No Instagram content found for ${target}.`);
     return { burst: best, influencers: [] };
   }
 
-  // 3) rank by engagement → top 3 distinct creators
+  // 3) MOST VIRAL → the TOP 6 reels by views, one per creator (distinct), each
+  //    carried with its reel media so the UI can show a 3×2 reel grid.
   const bestPerHandle = new Map<string, IgPost>();
-  for (const p of inWindow.sort((a, b) => engagement(b) - engagement(a))) {
+  for (const p of pool.sort((a, b) => engagement(b) - engagement(a))) {
     if (!bestPerHandle.has(p.handle)) bestPerHandle.set(p.handle, p);
   }
-  const top = [...bestPerHandle.values()].slice(0, 3);
-  emit(`${inWindow.length} in-window post(s); top creators: ${top.map((t) => "@" + t.handle).join(", ")}. Enriching profiles…`);
+  const top = [...bestPerHandle.values()].sort((a, b) => engagement(b) - engagement(a)).slice(0, 6);
+  emit(`Top ${target} reels by views: ${top.map((t) => "@" + t.handle).join(", ")}. Enriching profiles…`);
 
   const influencers: InfluencerSuggestion[] = [];
   for (const p of top) {
     const i = influencers.length;
     const prof = await resolveInstagramProfile(p.handle).catch(() => null);
-    const daysBefore = Math.max(0, Math.round((D - p.takenMs) / DAY));
     const metric = p.views > 0 ? `${p.views.toLocaleString()} views` : `${p.likes.toLocaleString()} likes`;
+    const nearBurst = Boolean(best) && Math.abs(p.takenMs - D) <= 14 * DAY;
     influencers.push({
       handle: p.handle,
       platform: "instagram",
       pk: prof?.pk,
       followers: prof?.followers ?? undefined,
       score: Math.round((0.95 - i * 0.06) * 100) / 100,
-      rationale: `Posted about ${best.competitor} (${metric}) ${daysBefore}d before its Amazon rank jumped #${best.rankFrom}→#${best.rankTo}${p.isPaid ? " · paid partnership" : ""}.`,
+      rationale: `Posted about ${target} — ${metric}${p.isPaid ? " · paid partnership" : ""}${nearBurst ? ` · lines up with its Amazon #${best!.rankFrom}→#${best!.rankTo} jump` : ""}.`,
+      postUrl: p.url || undefined,
+      thumbnailUrl: p.thumbnailUrl,
+      videoUrl: p.videoUrl,
+      avatarUrl: p.avatarUrl ?? prof?.profilePicUrl,
     });
   }
   return { burst: best, influencers };

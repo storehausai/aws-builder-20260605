@@ -72,23 +72,43 @@ function formatReply(result: DiscoveryResult): string {
 }
 
 const STEP_REVEAL_MS = 800;
+/** Cap on interim step texts — the full list (10–15) is too spammy in a thread. */
+const MAX_STEP_MESSAGES = 4;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Replay the agent's narrated work as interim iMessage texts, one per step with
- * a short pause between — the text-conversation analogue of the dashboard
- * revealing its steps one-at-a-time beside the chat. Aborts cleanly on shutdown.
+ * Down-sample a long step list to at most `max` milestones, always keeping the
+ * first and last so the narrative arc (read brand → … → ranking) survives.
+ */
+function milestoneSteps(steps: string[], max: number): string[] {
+  const clean = steps.map((s) => s.trim()).filter(Boolean);
+  if (clean.length <= max) return clean;
+  const picks = [clean[0]!];
+  // Evenly sample the middle, then always append the last.
+  const innerCount = max - 2;
+  for (let i = 1; i <= innerCount; i++) {
+    const idx = Math.round((i * (clean.length - 1)) / (innerCount + 1));
+    picks.push(clean[idx]!);
+  }
+  picks.push(clean[clean.length - 1]!);
+  // Dedupe in case sampling collided.
+  return [...new Set(picks)];
+}
+
+/**
+ * Replay the agent's narrated work as a few interim iMessage texts — the
+ * text-conversation analogue of the dashboard revealing its steps beside the
+ * chat, capped to milestones so the thread stays readable. Aborts on shutdown.
  */
 async function revealSteps(
   space: Space,
   steps: string[] | undefined,
   signal: AbortSignal,
 ): Promise<void> {
-  for (const step of steps ?? []) {
+  for (const line of milestoneSteps(steps ?? [], MAX_STEP_MESSAGES)) {
     if (signal.aborted) return;
-    const line = step.trim();
-    if (!line) continue;
     await space.send(line);
+    console.log(`[worker] » step: ${line}`);
     await sleep(STEP_REVEAL_MS);
   }
 }
@@ -188,6 +208,7 @@ async function main(): Promise<void> {
         // Immediate ack so the (real, ~1–2 min) discovery wait isn't silent —
         // the dashboard's equivalent is its loading state.
         await space.send("On it — finding creators for you… (about a minute)");
+        console.log("[worker] » ack sent, running discovery…");
         // Ground on the same brand the dashboard uses, so the iMessage reply
         // matches the dashboard chat instead of falling back to "the brand".
         const result = await runDiscovery(text, {
@@ -199,6 +220,9 @@ async function main(): Promise<void> {
         // beside the chat), then send the final grounded reply + creators.
         await revealSteps(space, result.steps, controller.signal);
         await space.send(formatReply(result));
+        console.log(
+          `[worker] » reply sent (${result.influencers?.length ?? 0} creators, brand=${result.brand ?? "?"})`,
+        );
       } catch (err) {
         console.error("[worker] error handling inbound message:", errText(err));
       }

@@ -9,7 +9,7 @@ import { SuggestionChips } from "./SuggestionChips";
 import { StepTimeline } from "./StepTimeline";
 import { ResearchCanvas } from "@/components/chat/ResearchCanvas";
 import { chatStore, type StoredMessage } from "@/lib/chat-store";
-import { discover, getReplies, type DiscoveryResult, type OutreachResult } from "@/lib/api";
+import { chat, getReplies, type ChatTurn, type DiscoveryResult, type OutreachResult } from "@/lib/api";
 
 /** The agent's recalled XTrace memory, shown before it starts working. */
 function MemoryNote({ text }: { text: string }) {
@@ -77,24 +77,36 @@ export function ChatView({
       persist(next);
       chatStore.touch(chatId, trimmed.slice(0, 48));
       setLoading(true);
-      setLiveSteps(["Reading your store and mapping the market…"]);
+      setLiveSteps(["Thinking…"]);
+
+      // Replay the conversation so the agent has context; IT decides which tools
+      // to run (find creators / DM / check replies) — no fixed re-discovery.
+      const history: ChatTurn[] = next
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+      // The most recent shortlist, so the agent answers follow-ups from it
+      // instead of re-running discovery.
+      const shortlist = [...next].reverse().find((m) => m.influencers && m.influencers.length)?.influencers;
 
       let result: DiscoveryResult;
       try {
-        result = await discover(trimmed, storeId);
+        result = await chat(history, storeId, brand, shortlist);
       } catch (e) {
         setLiveSteps(null);
         setLoading(false);
         persist([
           ...next,
-          { id: `a_${Date.now()}`, role: "assistant", content: `Sorry — discovery hit an error: ${(e as Error).message}`, createdAt: new Date().toISOString() },
+          { id: `a_${Date.now()}`, role: "assistant", content: `Sorry — ${(e as Error).message}`, createdAt: new Date().toISOString() },
         ]);
         return;
       }
 
-      // Reveal the agent's work one step at a time (the "working while talking" feel).
-      for (let i = 0; i < result.steps.length; i++) {
-        setLiveSteps(result.steps.slice(0, i + 1));
+      // Reveal any tool-work steps one at a time. A plain chat turn has none —
+      // it just shows the reply (no more "mapping the market…" on every message).
+      const steps = result.steps ?? [];
+      for (let i = 0; i < steps.length; i++) {
+        setLiveSteps(steps.slice(0, i + 1));
         await sleep(STEP_REVEAL_MS);
       }
 
@@ -102,7 +114,7 @@ export function ChatView({
         id: `a_${Date.now()}`,
         role: "assistant",
         content: result.reply,
-        steps: result.steps,
+        steps: steps.length ? steps : undefined,
         influencers: result.influencers,
         visuals: result.visuals,
         memory: result.memory,
@@ -112,7 +124,7 @@ export function ChatView({
       setLiveSteps(null);
       setLoading(false);
     },
-    [chatId, loading, persist],
+    [chatId, loading, persist, storeId, brand],
   );
 
   // Auto-send the seeded prompt (from a dashboard example chip) once.

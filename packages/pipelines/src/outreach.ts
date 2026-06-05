@@ -14,9 +14,12 @@ import { backendFromEnv } from "@pebble/outreach";
 import type { OutreachInput, OutreachResult } from "./types.js";
 
 const SYSTEM = [
-  "You are Pebble, writing an outreach Instagram DM on behalf of a brand.",
+  "You are Pebble, writing an outreach Instagram DM on behalf of a brand to a creator.",
+  "The ASK: invite them to make a short user-generated (UGC) video featuring the",
+  "brand's product, and offer to send them the product for FREE in exchange.",
   "Write ONE short, warm, personalized message — under 300 characters, no hashtags,",
-  "no emoji spam, human and specific. Reference why this creator fits the brand.",
+  "no emoji spam, human and specific. Briefly say why this creator fits, then make",
+  "the free-product-for-a-UGC-video offer and a light call to action.",
   "Output ONLY the message text, nothing else.",
 ].join("\n");
 
@@ -44,7 +47,7 @@ function instagramConfigured(env = process.env): boolean {
 /** Built-in template DM, used when the AI compose step fails. */
 function templateMessage(input: OutreachInput): string {
   const brand = input.brand?.trim() || "our brand";
-  return `Hi @${input.handle} — we love what you're doing and think you'd be a great fit for ${brand}. Would you be open to a quick collab chat?`;
+  return `Hi @${input.handle} — we love your content and think you'd be perfect for ${brand}. We'd love to send you our product for free in exchange for a short UGC video. Interested?`;
 }
 
 /**

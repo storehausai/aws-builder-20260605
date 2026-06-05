@@ -24,3 +24,4 @@ coverage/
 # local outreach round-trip capture + IG session
 .outreach/
 .ig-session.json
+.vercel

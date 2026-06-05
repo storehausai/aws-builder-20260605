@@ -25,6 +25,7 @@ import {
 } from "@pebble/providers";
 import type { DiscoveryInput, DiscoveryResult, InfluencerSuggestion } from "./types.js";
 import { findMarketMoverLive } from "./market-mover-live.js";
+import { findBrandReelInfluencers } from "./brand-reels.js";
 import { findInfluencersFromBurst } from "./influencer-from-burst.js";
 
 const ENGINE_URL = process.env.ENGINE_URL ?? "http://localhost:8787";
@@ -201,24 +202,47 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
     return { brand: input.brandUrl ? hostname(input.brandUrl) : "your brand", category: "", summary: "", competitors: [], seedAsins: [], homepageUrl: input.brandUrl ?? "" };
   });
 
-  // (b)–(j): COMPETITOR products → biggest steady-price Amazon burst in the last
-  // year → Instagram posts in the 7-day pre-burst window → TOP 3 creators who
-  // drove it. Brand-relevant by construction (they posted about a competitor's
-  // product right before its rank jumped). Falls back to category lookalikes.
+  // Discovery: the most-viral Instagram reels ABOUT THE BRAND (its own hashtag),
+  // ranked by views → the top 6 creators behind them. Apify-only (apidojo cheap
+  // listing + official-actor enrichment for real views/video/avatar); no deep
+  // pagination, no ScrapeCreators. Falls back to category lookalikes.
+  // The rank/price chart is rendered separately from the engine (visuals layer).
   let influencers: InfluencerSuggestion[] = [];
   let reply = "";
-  const haveKeys = Boolean(process.env.KEEPA_API_KEY?.trim() && process.env.SCRAPECREATORS_API_KEY?.trim());
-  if (haveKeys) {
-    const r = await findInfluencersFromBurst({ brand, emit }).catch(() => null);
+  let chart: DiscoveryResult["chart"];
+  const haveApify = Boolean(process.env.APIFY_TOKEN?.trim());
+
+  // The CHART shows the COMPETITOR product whose real Amazon sales-rank burst
+  // (steady price, last 1y) motivates the outreach — separate from the brand-reel
+  // creator search. Runs in parallel; never blocks the influencers.
+  const haveKeepa = Boolean(process.env.KEEPA_API_KEY?.trim() && process.env.SCRAPECREATORS_API_KEY?.trim());
+  const chartP = haveKeepa
+    ? findInfluencersFromBurst({ brand, emit, chartOnly: true }).catch(() => null)
+    : Promise.resolve(null);
+
+  if (haveApify) {
+    const r = await findBrandReelInfluencers({ brand, emit }).catch(() => null);
     if (r && r.influencers.length) {
       influencers = r.influencers;
       const names = influencers.map((i) => `@${i.handle}`).join(", ");
-      const prod = (r.burst?.productTitle ?? "").slice(0, 40);
       reply =
-        `For ${brand.brand || "your brand"}: the creators who moved ${r.burst?.competitor}'s "${prod}" on Amazon ` +
-        `(rank #${r.burst?.rankFrom}→#${r.burst?.rankTo}, price held flat) were ${names}. ` +
-        `They've proven they can drive sales in your category — want me to DM them?`;
+        `For ${brand.brand || "your brand"}: the creators behind the most-viral Instagram reels about your brand are ${names}. ` +
+        `They're already making content your audience watches — want me to DM them?`;
     }
+  }
+
+  const burst = await chartP;
+  if (burst?.burst?.points?.length) {
+    const b = burst.burst;
+    chart = {
+      competitor: b.competitor,
+      productTitle: b.productTitle,
+      productImage: b.productImage,
+      rankFrom: b.rankFrom,
+      rankTo: b.rankTo,
+      date: b.date,
+      points: b.points!,
+    };
   }
 
   // Fallback: category-fit lookalikes (no keys, no recent burst, or no in-window creators).
@@ -230,5 +254,5 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
   }
 
   emit("Ranking the shortlist…");
-  return { reply, steps, influencers };
+  return { reply, steps, influencers, chart };
 }

@@ -1,8 +1,10 @@
 import {
   createBb,
   insertReturning,
+  unwrap,
   unwrapMaybe,
   upsertReturning,
+  upsertRows,
   type Bb,
 } from "@pebble/bb";
 import type { InfluencerSuggestion } from "@pebble/pipelines";
@@ -215,6 +217,140 @@ export async function persistCandidates(
   }
 }
 
+/**
+ * READ-BEFORE-FETCH: return previously-discovered candidates for a store that
+ * are still fresh (created within `ttlMs`), so a repeat discovery can reuse them
+ * and skip the expensive Apify search entirely. Deduped by handle (highest score
+ * wins) and sorted by score desc. Returns [] on any miss/failure — the caller
+ * then falls back to a live discovery, so this never blocks the flow.
+ */
+export async function getFreshCandidates(
+  storeId: string,
+  ttlMs: number,
+): Promise<InfluencerSuggestion[]> {
+  const bb = tryCreateBb();
+  if (!bb) return [];
+  try {
+    const rows = unwrap(
+      await bb
+        .from("influencer_candidate")
+        .select("platform, handle, platform_pk, followers, score, rationale, created_at")
+        .eq("store_id", storeId)
+        .order("created_at", { ascending: false })
+        .limit(60),
+    ) as RawCandidate[];
+
+    const cutoff = Date.now() - ttlMs;
+    const byHandle = new Map<string, InfluencerSuggestion>();
+    for (const r of rows ?? []) {
+      if (r.created_at && new Date(r.created_at).getTime() < cutoff) continue;
+      const handle = (r.handle ?? "").replace(/^@/, "").trim();
+      if (!handle) continue;
+      const cand: InfluencerSuggestion = {
+        handle,
+        platform: r.platform ?? "instagram",
+        pk: r.platform_pk ?? undefined,
+        followers: numOrUndef(r.followers),
+        score: numOrUndef(r.score),
+        rationale: r.rationale ?? "",
+      };
+      const prev = byHandle.get(handle);
+      if (!prev || (cand.score ?? 0) > (prev.score ?? 0)) byHandle.set(handle, cand);
+    }
+    return [...byHandle.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  } catch {
+    return [];
+  }
+}
+
+/** A profile resolved from / written to the persistent `social_account` cache. */
+export interface CachedProfile {
+  pk?: string;
+  handle: string;
+  avatarUrl?: string;
+  followers?: number;
+  verified?: boolean;
+  displayName?: string;
+}
+
+/**
+ * PERSISTENT PROFILE CACHE (read). Look up a creator's cached IG profile in
+ * `social_account` by handle (latest row), used before spending a ScrapeCreators
+ * credit. Returns null when absent, avatar-less, or staler than `ttlMs` (IG CDN
+ * avatar URLs expire, so we re-fetch occasionally). Never throws.
+ */
+export async function getCachedProfile(
+  handle: string,
+  ttlMs: number,
+): Promise<CachedProfile | null> {
+  const clean = (handle ?? "").toLowerCase().replace(/^@/, "").trim();
+  if (!clean) return null;
+  const bb = tryCreateBb();
+  if (!bb) return null;
+  try {
+    const row = unwrapMaybe(
+      await bb
+        .from("social_account")
+        .select("platform_account_id, handle, display_name, avatar_url, verified, followers_count, updated_at, last_fetched_at")
+        .eq("handle", clean)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ) as RawAccount | null;
+    if (!row?.avatar_url) return null;
+    const stamp = row.last_fetched_at ?? row.updated_at;
+    if (stamp && Date.now() - new Date(stamp).getTime() > ttlMs) return null;
+    return {
+      pk: row.platform_account_id ?? undefined,
+      handle: clean,
+      avatarUrl: row.avatar_url ?? undefined,
+      followers: numOrUndef(row.followers_count),
+      verified: row.verified ?? undefined,
+      displayName: row.display_name ?? undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * PERSISTENT PROFILE CACHE (write-through). Upsert a resolved profile into
+ * `social_account` so cold starts don't re-hit ScrapeCreators. The table's
+ * natural key is (platform, platform_account_id), so we can only persist when
+ * the IG `pk` is known — without it we skip (the in-memory L1 cache still
+ * covers the current request). Best-effort; never throws.
+ */
+export async function putCachedProfile(p: CachedProfile & { platform?: string }): Promise<void> {
+  if (!p.pk) return;
+  const handle = (p.handle ?? "").replace(/^@/, "").trim();
+  if (!handle) return;
+  const bb = tryCreateBb();
+  if (!bb) return;
+  try {
+    const now = new Date().toISOString();
+    await upsertRows(
+      bb,
+      "social_account",
+      [
+        {
+          platform: p.platform ?? "instagram",
+          platform_account_id: String(p.pk),
+          handle,
+          display_name: p.displayName ?? null,
+          avatar_url: p.avatarUrl ?? null,
+          verified: p.verified ?? null,
+          followers_count: p.followers ?? null,
+          last_fetched_at: now,
+          updated_at: now,
+        },
+      ],
+      ["platform", "platform_account_id"],
+    );
+  } catch (err) {
+    console.warn("[brand.server] putCachedProfile failed:", err);
+  }
+}
+
 /** Resolve a candidate id by (store_id, handle), or null when absent. */
 export async function findCandidateId(
   bb: Bb,
@@ -299,6 +435,34 @@ interface RawBrandProfile {
   summary?: string | null;
   seed_asins?: unknown;
   competitors?: unknown;
+}
+
+interface RawCandidate {
+  platform?: string | null;
+  handle?: string | null;
+  platform_pk?: string | null;
+  followers?: number | string | null;
+  score?: number | string | null;
+  rationale?: string | null;
+  created_at?: string | null;
+}
+
+interface RawAccount {
+  platform_account_id?: string | null;
+  handle?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
+  verified?: boolean | null;
+  followers_count?: number | string | null;
+  updated_at?: string | null;
+  last_fetched_at?: string | null;
+}
+
+/** Coerce a possibly-string numeric column into a finite number, else undefined. */
+function numOrUndef(value: unknown): number | undefined {
+  if (value == null) return undefined;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 /** Coerce a jsonb column (string[] | stringified | null) into a string array. */

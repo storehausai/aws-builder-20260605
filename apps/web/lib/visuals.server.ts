@@ -1,6 +1,10 @@
 import { resolveInstagramProfile } from "@pebble/providers";
-import { getBrandProfile } from "@/lib/brand.server";
+import { getBrandProfile, getCachedProfile, putCachedProfile } from "@/lib/brand.server";
 import type { InfluencerSuggestion } from "@/lib/types";
+
+// How long a persisted avatar/follower row stays usable before we re-fetch.
+// IG CDN avatar URLs expire, so cap freshness (override via PROFILE_TTL_HOURS).
+const PROFILE_TTL_MS = (Number(process.env.PROFILE_TTL_HOURS) || 24 * 7) * 3_600_000;
 
 /**
  * Visual data for the chat's research canvas — real images + a real chart:
@@ -13,8 +17,16 @@ import type { InfluencerSuggestion } from "@/lib/types";
 export interface Visuals {
   brand?: { name: string; category?: string; logo?: string };
   competitors?: { name: string; logo?: string }[];
-  chart?: { points: { date: string; rank: number; spike: boolean }[]; productTitle?: string } | null;
-  creators?: { handle: string; avatar?: string; followers?: number; verified?: boolean; score?: number; rationale?: string }[];
+  chart?: {
+    points: { date: string; rank: number; price?: number | null; spike: boolean }[];
+    productTitle?: string;
+    competitor?: string;
+    productImage?: string;
+    rankFrom?: number;
+    rankTo?: number;
+    date?: string;
+  } | null;
+  creators?: { handle: string; avatar?: string; followers?: number; verified?: boolean; score?: number; rationale?: string; thumbnailUrl?: string; videoUrl?: string; postUrl?: string }[];
 }
 
 const ENGINE_URL = process.env.ENGINE_URL ?? "http://localhost:8787";
@@ -37,7 +49,7 @@ async function engineChart(brandName: string): Promise<Visuals["chart"]> {
     });
     if (!res.ok) return null;
     const d = (await res.json()) as {
-      series?: { dates: string[]; ranks: number[] };
+      series?: { dates: string[]; ranks: number[]; prices?: Array<number | null> };
       spikeDates?: string[];
       productTitle?: string;
       error?: string;
@@ -47,6 +59,7 @@ async function engineChart(brandName: string): Promise<Visuals["chart"]> {
     const points = d.series.dates.map((date, i) => ({
       date,
       rank: d.series!.ranks[i] ?? 0,
+      price: d.series!.prices?.[i] ?? null,
       spike: spikes.has(date),
     }));
     return { points, productTitle: d.productTitle };
@@ -60,6 +73,8 @@ interface ResolvedProfile {
   followers?: number;
   fullName?: string;
   isVerified?: boolean;
+  /** IG numeric user id — needed to persist into the social_account cache. */
+  pk?: string;
   exists: boolean;
 }
 
@@ -86,6 +101,7 @@ async function scProfile(handle: string): Promise<ResolvedProfile | null> {
       followers: (u.edge_followed_by as { count?: number })?.count ?? (u.follower_count as number),
       fullName: u.full_name as string,
       isVerified: u.is_verified as boolean,
+      pk: (u.id as string) || (u.pk as string) || undefined,
       exists: true,
     };
   } catch {
@@ -93,13 +109,38 @@ async function scProfile(handle: string): Promise<ResolvedProfile | null> {
   }
 }
 
-/** Resolve a creator's profile: free endpoint first (cheap), ScrapeCreators next
- *  (reliable). Cached per handle. */
+/**
+ * Resolve a creator's profile through a 3-tier cache so we spend as few
+ * ScrapeCreators credits as possible:
+ *   L1  in-memory Map      — per warm server instance (free, instant)
+ *   L2  social_account DB  — survives cold starts (the cross-request cache)
+ *   L3  live fetch         — free IG endpoint first, then ScrapeCreators (paid)
+ * On an L3 hit we write through to BOTH L2 (when the IG pk is known) and L1, so
+ * the next request for this handle never touches the paid API again.
+ */
 async function resolveProfile(handle: string): Promise<ResolvedProfile> {
   const k = handle.toLowerCase().replace(/^@/, "");
-  const cached = profileCache.get(k);
-  if (cached) return cached;
 
+  // L1 — in-memory.
+  const mem = profileCache.get(k);
+  if (mem) return mem;
+
+  // L2 — persistent Butterbase cache (no credit spent).
+  const cached = await getCachedProfile(k, PROFILE_TTL_MS);
+  if (cached?.avatarUrl) {
+    const out: ResolvedProfile = {
+      profilePicUrl: cached.avatarUrl,
+      followers: cached.followers,
+      fullName: cached.displayName,
+      isVerified: cached.verified,
+      pk: cached.pk,
+      exists: true,
+    };
+    profileCache.set(k, out);
+    return out;
+  }
+
+  // L3 — live. Free endpoint first (cheap), ScrapeCreators (paid) only if needed.
   let out: ResolvedProfile = { exists: false };
   try {
     const free = await resolveInstagramProfile(handle);
@@ -109,6 +150,7 @@ async function resolveProfile(handle: string): Promise<ResolvedProfile> {
         followers: free.followers,
         fullName: free.fullName,
         isVerified: free.isVerified,
+        pk: free.pk,
         exists: true,
       };
     }
@@ -119,7 +161,20 @@ async function resolveProfile(handle: string): Promise<ResolvedProfile> {
     const sc = await scProfile(handle);
     if (sc) out = sc;
   }
+
   profileCache.set(k, out);
+  // Write through to the persistent cache so cold starts reuse it (needs pk).
+  if (out.exists && out.profilePicUrl) {
+    void putCachedProfile({
+      platform: "instagram",
+      pk: out.pk,
+      handle: k,
+      avatarUrl: out.profilePicUrl,
+      followers: out.followers,
+      verified: out.isVerified,
+      displayName: out.fullName,
+    });
+  }
   return out;
 }
 
@@ -128,14 +183,22 @@ async function resolveProfile(handle: string): Promise<ResolvedProfile> {
 async function creatorAvatars(influencers: InfluencerSuggestion[]): Promise<Visuals["creators"]> {
   const enriched = await Promise.all(
     influencers.slice(0, 8).map(async (inf) => {
-      const p = await resolveProfile(inf.handle);
+      // Discovery (Apify) already carries a real avatar + followers — use them
+      // and DON'T fall through to resolveProfile (which can spend a paid
+      // ScrapeCreators credit). Only resolve when the avatar is missing.
+      const p = inf.avatarUrl
+        ? ({ profilePicUrl: inf.avatarUrl, followers: inf.followers, exists: true } as ResolvedProfile)
+        : await resolveProfile(inf.handle);
       return {
         handle: inf.handle,
-        avatar: proxy(p.profilePicUrl),
+        avatar: proxy(p.profilePicUrl) ?? proxy(inf.avatarUrl),
         followers: p.followers ?? inf.followers,
         verified: p.isVerified,
         score: inf.score,
         rationale: inf.rationale,
+        thumbnailUrl: proxy(inf.thumbnailUrl),
+        videoUrl: proxy(inf.videoUrl),
+        postUrl: inf.postUrl,
         exists: p.exists,
       };
     }),

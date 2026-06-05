@@ -244,22 +244,15 @@ function buildPrompt(input: DiscoveryInput): string {
  * runDiscovery — never throws; always returns a usable DiscoveryResult.
  */
 export async function runDiscovery(input: DiscoveryInput): Promise<DiscoveryResult> {
-  // PRIMARY: a reachable RocketRide engine drives discovery.pipe.
-  try {
-    if (await isReachable()) {
-      const r = await runViaRocketRide(input);
-      if (r.influencers.length) return r;
-    }
-  } catch {
-    /* fall through to the in-process chain */
-  }
-  // MAIN: the real a–j chain in-process (onboarding → engine market-mover →
-  // similar creators), narrated step-by-step. Real adapters + engine; never throws.
+  // PRIMARY: the real a–j chain — COMPETITOR product → biggest steady-price burst
+  // (last 1y) → Instagram tagged-feed creators who drove it. Brand-relevant and
+  // load-bearing, so it runs FIRST. The RocketRide agent path only proposed
+  // generic names (garyvee/mrbeast), so it's no longer used for discovery.
   try {
     const r = await runAjChain(input);
     if (r.influencers.length) return r;
-    // a–j surfaced no creators → soften to a gateway-proposed shortlist, but
-    // keep the honest a–j narration.
+    // a–j surfaced no creators → keep its honest narration, soften to a
+    // category-aware gateway shortlist (still on-category, not generic).
     try {
       const g = await runViaGateway(input);
       if (g.influencers.length) {

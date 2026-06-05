@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Building2, TrendingUp, Users, Instagram, Send, Check, Loader2 } from "lucide-react";
@@ -58,21 +58,66 @@ export function ResearchCanvas({
 
       {hasChart && (
         <Section icon={TrendingUp} title="Amazon sales-rank — bursts detected" delay={next()}>
-          {chart!.productTitle && (
-            <div className="mb-1.5 truncate text-xs text-muted-foreground">{chart!.productTitle}</div>
+          {/* product info: image + title + competitor + rank jump + price */}
+          {(chart!.productTitle || chart!.productImage) && (
+            <div className="mb-2 flex items-center gap-2.5 rounded-lg border border-border bg-background p-2">
+              {chart!.productImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={chart!.productImage} alt="" className="h-12 w-12 flex-shrink-0 rounded-md object-cover ring-1 ring-border" />
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-xs font-medium text-foreground">{chart!.productTitle}</div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                  {chart!.competitor && <span>competitor · <span className="font-medium text-foreground">{chart!.competitor}</span></span>}
+                  {chart!.rankFrom != null && chart!.rankTo != null && (
+                    <span>rank <span className="font-medium text-foreground">#{chart!.rankFrom.toLocaleString()} → #{chart!.rankTo.toLocaleString()}</span></span>
+                  )}
+                  {(() => {
+                    const last = [...(chart!.points ?? [])].reverse().find((p) => p.price != null);
+                    return last?.price != null ? <span>${Number(last.price).toFixed(2)}</span> : null;
+                  })()}
+                </div>
+              </div>
+            </div>
           )}
           <div className="h-40 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chart!.points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <XAxis dataKey="date" hide />
                 {/* lower rank = better → reverse so a burst spikes UP */}
-                <YAxis reversed domain={["dataMin", "dataMax"]} hide />
+                <YAxis yAxisId="rank" reversed domain={["dataMin", "dataMax"]} hide />
+                {/* Price on its own (right) scale. Pad the domain so a STEADY
+                    (constant) price still renders as a centered, visible flat
+                    line — "auto" collapses a min===max series to an edge and it
+                    disappears. With [v·0.6, v·1.4] a constant value sits at 50%. */}
+                <YAxis
+                  yAxisId="price"
+                  orientation="right"
+                  domain={[(min: number) => +(min * 0.6).toFixed(2), (max: number) => +(max * 1.4).toFixed(2)]}
+                  hide
+                />
                 <Tooltip
                   contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid var(--color-border)" }}
-                  formatter={(v: number) => [`#${v}`, "BSR"]}
+                  formatter={(v: number, name: string) =>
+                    name === "price" ? [`$${Number(v).toFixed(2)}`, "Price"] : [`#${v}`, "BSR"]
+                  }
                   labelFormatter={(l) => String(l)}
                 />
                 <Line
+                  yAxisId="price"
+                  type="monotone"
+                  dataKey="price"
+                  stroke="#16a34a"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                  dot={false}
+                  activeDot={{ r: 3 }}
+                  connectNulls
+                  isAnimationActive
+                  animationDuration={900}
+                />
+                <Line
+                  yAxisId="rank"
                   type="monotone"
                   dataKey="rank"
                   stroke="var(--color-foreground)"
@@ -85,17 +130,18 @@ export function ResearchCanvas({
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="inline-block h-2 w-2 rounded-full bg-red-500" /> burst (steady price → real demand)
+          <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-red-500" /> burst (steady price → real demand)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm" style={{ background: "repeating-linear-gradient(90deg,#16a34a 0 4px,transparent 4px 7px)" }} /> price (USD)</span>
           </div>
         </Section>
       )}
 
       {creators && creators.length > 0 && (
-        <Section icon={Users} title={`Creators (${creators.length})`} delay={next()}>
-          <div className="grid grid-cols-1 gap-2">
+        <Section icon={Users} title={`Top reels (${creators.length})`} delay={next()}>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {creators.map((c, i) => (
-              <CreatorRow
+              <ReelCard
                 key={c.handle}
                 c={c}
                 i={i}
@@ -111,7 +157,7 @@ export function ResearchCanvas({
   );
 }
 
-function CreatorRow({
+function ReelCard({
   c,
   i,
   storeId,
@@ -125,6 +171,9 @@ function CreatorRow({
   onOutreach?: (handle: string, result: OutreachResult) => void;
 }) {
   const [state, setState] = useState<"idle" | "sending" | "done">("idle");
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
   async function dm() {
     setState("sending");
     try {
@@ -135,44 +184,86 @@ function CreatorRow({
       setState("idle");
     }
   }
+
+  function onEnter() {
+    const v = videoRef.current;
+    if (v) void v.play().catch(() => {});
+  }
+  function onLeave() {
+    const v = videoRef.current;
+    if (v) { v.pause(); try { v.currentTime = 0; } catch { /* noop */ } }
+  }
+
   return (
     <motion.div
-      initial={{ opacity: 0, x: -6 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.05 * i, duration: 0.25 }}
-      className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2"
+      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-background"
     >
-      <Logo src={c.avatar} name={c.handle} size={36} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1 text-sm font-medium text-foreground">
-          <Instagram className="h-3 w-3 text-muted-foreground" />@{c.handle}
-        </div>
-        {c.followers != null && (
-          <div className="text-xs text-muted-foreground">{fmtFollowers(c.followers)} followers</div>
-        )}
-      </div>
-      {c.score != null && (
-        <span className="flex-shrink-0 text-xs font-semibold tabular-nums text-foreground">{Math.round(c.score * 100)}</span>
-      )}
-      <button
-        onClick={dm}
-        disabled={state !== "idle"}
-        className="inline-flex h-7 flex-shrink-0 items-center gap-1 rounded-lg bg-foreground px-2.5 text-xs font-medium text-background transition-opacity disabled:opacity-60"
+      {/* reel (9:16): thumbnail, plays on hover */}
+      <a
+        href={c.postUrl || `https://www.instagram.com/${c.handle}/`}
+        target="_blank"
+        rel="noreferrer"
+        onMouseEnter={onEnter}
+        onMouseLeave={onLeave}
+        className="relative block aspect-[9/16] w-full overflow-hidden bg-muted"
       >
-        {state === "sending" ? (
-          <>
-            <Loader2 className="h-3 w-3 animate-spin" /> …
-          </>
-        ) : state === "done" ? (
-          <>
-            <Check className="h-3 w-3" /> Sent
-          </>
+        {c.thumbnailUrl && !thumbFailed ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={c.thumbnailUrl}
+            alt={`@${c.handle} reel`}
+            onError={() => setThumbFailed(true)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
         ) : (
-          <>
-            <Send className="h-3 w-3" /> DM
-          </>
+          <div className="absolute inset-0 flex items-center justify-center bg-foreground/[0.06] text-xs font-semibold text-muted-foreground">
+            @{c.handle.replace(/^@/, "")}
+          </div>
         )}
-      </button>
+        {c.videoUrl && (
+          <video
+            ref={videoRef}
+            src={c.videoUrl}
+            muted
+            loop
+            playsInline
+            preload="none"
+            className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          />
+        )}
+        {c.score != null && (
+          <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white backdrop-blur-sm">
+            {Math.round(c.score * 100)}
+          </span>
+        )}
+      </a>
+
+      {/* footer: avatar + followers + DM */}
+      <div className="flex items-center gap-2 p-2">
+        <Logo src={c.avatar} name={c.handle} size={28} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-medium text-foreground">@{c.handle}</div>
+          {c.followers != null && (
+            <div className="text-[11px] text-muted-foreground">{fmtFollowers(c.followers)} followers</div>
+          )}
+        </div>
+        <button
+          onClick={dm}
+          disabled={state !== "idle"}
+          className="inline-flex h-7 flex-shrink-0 items-center gap-1 rounded-lg bg-foreground px-2.5 text-xs font-medium text-background transition-opacity disabled:opacity-60"
+        >
+          {state === "sending" ? (
+            <><Loader2 className="h-3 w-3 animate-spin" /> …</>
+          ) : state === "done" ? (
+            <><Check className="h-3 w-3" /> Sent</>
+          ) : (
+            <><Send className="h-3 w-3" /> DM</>
+          )}
+        </button>
+      </div>
     </motion.div>
   );
 }

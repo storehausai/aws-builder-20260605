@@ -15,6 +15,25 @@ export interface InfluencerSuggestion {
   /** cascade / market-mover composite, 0..1. */
   score?: number;
   rationale: string;
+  /** The creator's viral reel/post that drove the recommendation. */
+  postUrl?: string;
+  /** Reel thumbnail (poster image) — shown in the creator grid. */
+  thumbnailUrl?: string;
+  /** Reel video URL — played on hover when available. */
+  videoUrl?: string;
+  /** Creator profile picture. */
+  avatarUrl?: string;
+}
+
+/** The COMPETITOR product whose sales-rank burst drove this discovery. */
+export interface DiscoveryChart {
+  competitor: string;
+  productTitle: string;
+  productImage?: string;
+  rankFrom: number;
+  rankTo: number;
+  date: string;
+  points: { date: string; rank: number; price: number | null; spike: boolean }[];
 }
 
 export interface DiscoveryResult {
@@ -23,6 +42,8 @@ export interface DiscoveryResult {
   /** Narrated work, one line per step (step 3 of the demo). */
   steps: string[];
   influencers: InfluencerSuggestion[];
+  /** The competitor product + rank/price series behind the recommendation. */
+  chart?: DiscoveryChart;
 }
 
 export interface OutreachResult {

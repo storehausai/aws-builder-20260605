@@ -1,6 +1,6 @@
 # pebble (hackathon edition) — Build Plan
 
-> **One line:** rebuild pebble's "find influencers who actually move the market, then reach out to
+> **One line:** build pebble's "find influencers who actually move the market, then reach out to
 > them" loop on the hackathon stack — **RocketRide** (orchestration) · **Butterbase** (backend + AI
 > gateway) · **XTrace** (memory) · **Photon/Spectrum** (messaging) — so a brand goes from *homepage
 > URL* → *suggested influencers* → *real Instagram DM sent* → *reply relayed to their iPhone*.
@@ -103,20 +103,20 @@ so swapping is a one-file change.
 
 ---
 
-## 2. Stack mapping (pebble → hackathon stack)
+## 2. Stack
 
-| pebble today | Re-architected |
+| Layer | Implementation |
 |---|---|
-| `supabase/migrations/*.sql` (19 canonical tables) | **Butterbase** declarative `schema.json` (same tables; `provider_id` open-provenance ports verbatim) + new outreach tables |
-| `@pebble/db` (`@supabase/supabase-js`) | **`@pebble/bb`** (`@butterbase/sdk`) — near-identical `.from().select().eq()` surface |
-| `apps/web/lib/ai.ts` (Vertex/AIStudio/Anthropic, ~200 lines) | **deleted** → Butterbase AI gateway (OpenAI-compatible, `provider/model`) |
-| `apps/web/lib/chat-agent/loop.ts` (hand-coded Gemini loop) | **deleted** → RocketRide `discovery.pipe` (`agent_rocketride`); app calls `client.chat()` |
-| `apps/web/lib/chat-agent/tools.ts` (3 tool decls) | RocketRide `tool_*` nodes on the orchestrator |
-| `@pebble/engine` (pure TS math) | **unchanged** — exposed via `apps/engine` HTTP service, called as a `tool_http_request` node |
-| `@pebble/providers` (Keepa/Apify/ScrapeCreators) | **kept**; invoked by RocketRide ingestion-pipeline tool nodes |
-| `@pebble/panels` | unchanged (panel iframe stays for web) |
-| *(missing: feedback loop / outreach memory)* | **`@pebble/memory`** (`@xtraceai/memory`) |
-| *(missing: outreach + messaging)* | **`apps/messaging`** (Spectrum worker) + **`@pebble/outreach`** (IG sender + relay) |
+| Canonical data (19 tables) | **Butterbase** declarative `schema.json` (`provider_id` open-provenance) + outreach tables |
+| DB client | **`@pebble/bb`** (`@butterbase/sdk`) — `.from().select().eq()` surface |
+| LLM access | Butterbase AI gateway (OpenAI-compatible, `provider/model`) |
+| Agent loop | RocketRide `discovery.pipe` (`agent_rocketride`); app calls `client.chat()` |
+| Tool calls | RocketRide `tool_*` nodes on the orchestrator |
+| Market-mover math | **`@pebble/engine`** (pure TS) — exposed via `apps/engine` HTTP service, called as a `tool_http_request` node |
+| Data providers | **`@pebble/providers`** (Keepa/Apify/ScrapeCreators) — invoked by RocketRide ingestion-pipeline tool nodes |
+| Panels | **`@pebble/panels`** (panel iframe for web) |
+| Memory | **`@pebble/memory`** (`@xtraceai/memory`) |
+| Outreach + messaging | **`apps/messaging`** (Spectrum worker) + **`@pebble/outreach`** (IG sender + relay) |
 
 ### New monorepo shape
 
@@ -124,17 +124,17 @@ so swapping is a one-file change.
 pebble-hackathon/  (pnpm + Turbo)
 ├── apps/
 │   ├── web/              # Next.js — homepage-URL front door, big pill, streaming chat, panel iframe
-│   ├── engine/           # NEW — tiny HTTP wrapper around @pebble/engine (/market-movers, /attribute)
-│   └── messaging/        # NEW — Spectrum worker: iMessage(marketer) + Instagram(custom provider)
+│   ├── engine/           # tiny HTTP wrapper around @pebble/engine (/market-movers, /attribute)
+│   └── messaging/        # Spectrum worker: iMessage(marketer) + Instagram(custom provider)
 ├── packages/
-│   ├── core/             # types + ports                       (unchanged)
-│   ├── engine/           # detectSpikes/scoreCascade/findMarketMovers  (UNCHANGED — the moat)
-│   ├── providers/        # Keepa/Apify/ScrapeCreators adapters  (kept)
-│   ├── panels/           # UI components                        (unchanged)
-│   ├── bb/               # NEW — @pebble/bb: Butterbase client (replaces @pebble/db)
-│   ├── memory/           # NEW — @pebble/memory: XTrace brand-brief + outcomes wrapper
-│   └── outreach/         # NEW — @pebble/outreach: IG provider (definePlatform) + relay logic
-├── pipelines/            # NEW — RocketRide .pipe graphs (committed to git)
+│   ├── core/             # types + ports
+│   ├── engine/           # detectSpikes/scoreCascade/findMarketMovers  (the moat)
+│   ├── providers/        # Keepa/Apify/ScrapeCreators adapters
+│   ├── panels/           # UI components
+│   ├── bb/               # @pebble/bb: Butterbase client
+│   ├── memory/           # @pebble/memory: XTrace brand-brief + outcomes wrapper
+│   └── outreach/         # @pebble/outreach: IG provider (definePlatform) + relay logic
+├── pipelines/            # RocketRide .pipe graphs (committed to git)
 │   ├── ingest.pipe       #   provider fetch → adapter.normalize → Butterbase write
 │   ├── discovery.pipe    #   orchestrator: ingest_brand → find_creators → score → suggest
 │   └── outreach.pipe     #   compose DM → send_ig_dm → record thread → notify marketer
@@ -146,15 +146,15 @@ pebble-hackathon/  (pnpm + Turbo)
 
 ## 3. Butterbase schema (`butterbase/schema.json`)
 
-Port pebble's canonical tables 1:1 (Butterbase is Postgres; the DDL maps directly to declarative
-JSON). Keep these from pebble unchanged in shape:
+The canonical tables (Butterbase is Postgres; the DDL maps directly to declarative
+JSON):
 
 - **Moat / canonical:** `data_provider`, `commerce_fetch_raw`, `commerce_product`,
   `commerce_product_snapshot`, `social_fetch_raw`, `social_account`, `social_account_post`,
   `social_account_snapshot`, `social_post_snapshot`, `brand`, `brand_account`, `brand_mention`,
   `tracked_brand`, `detected_event`, `attribution`, `panels`.
 - **Tenancy:** `stores`, `store_members`, `requests` (intake/conversation). Auth via Butterbase Auth
-  (email/magic-link/OAuth) replacing Supabase Auth.
+  (email/magic-link/OAuth).
 
 **New tables for the homepage→outreach flow:**
 
@@ -277,7 +277,7 @@ the Spectrum worker (§6), not pulled by the pipeline.
    content:'Brand <name> sells <category>; flagship ASINs ...; competitors ...'}], user_id})`. The
    agent `recall()`s this on every later turn so it never re-derives the brand.
 2. **Outcome facts (write on steps 5–7).** "Contacted @handle for <brand> on <date>"; on reply,
-   "@handle replied — interested." These compound into the moat pebble's VISION §3 always wanted.
+   "@handle replied — interested." These compound into the moat the product has always wanted.
 3. **Belief revision (free).** If a creator first looks like a market-mover but later data shows the
    spike was a discount, ingesting the corrected fact lets XTrace supersede the old belief — so
    "who actually converts for me" stays honest over time.
@@ -336,8 +336,8 @@ A ~50-line server (Hono/Express on Fluid Compute or local) importing `@pebble/en
 // POST /attribute     { storeId, scope, identifier, eventId? } -> spike-window content attribution
 ```
 It reads canonical data from Butterbase (`@pebble/bb`), runs the pure math, returns JSON. RocketRide
-calls it as `tool_http_request`. This keeps pebble's cardinal rule intact: **the engine imports
-nothing**, math stays identical to the TS original (no numerical drift), and RocketRide stays the
+calls it as `tool_http_request`. This keeps the engine's cardinal rule intact: **the engine imports
+nothing**, math stays identical (no numerical drift), and RocketRide stays the
 orchestrator. `${ENGINE_URL}` is the only new env coupling.
 
 ---
@@ -386,7 +386,7 @@ IG_PASSWORD=...
 IG_SESSION_PATH=./.ig-session.json    # serialized session to avoid login checkpoints in the demo
 IG_PROXY=...                          # optional residential proxy
 
-# Data providers (unchanged from pebble)
+# Data providers
 KEEPA_API_KEY=...  APIFY_TOKEN=...  SCRAPECREATORS_API_KEY=...
 ```
 
@@ -405,9 +405,9 @@ earliest, then the rest is assembled around it.
    your own iMessage. **Steps 5–7 now work in isolation.**
 
 **Milestone B — backend on Butterbase.**
-4. Create the Butterbase app; apply `butterbase/schema.json` (canonical + outreach). `@pebble/bb`
-   client; port `@pebble/db` call sites.
-5. Point an OpenAI client at the Butterbase gateway; delete `lib/ai.ts`. Confirm a Claude/Gemini call.
+4. Create the Butterbase app; apply `butterbase/schema.json` (canonical + outreach). Wire up the
+   `@pebble/bb` client and the data-access call sites.
+5. Point an OpenAI client at the Butterbase gateway. Confirm a Claude/Gemini call.
 
 **Milestone C — RocketRide orchestration.**
 6. Stand up the engine HTTP service (`apps/engine`) over `@pebble/engine` + Butterbase reads.
@@ -436,6 +436,6 @@ earliest, then the rest is assembled around it.
 - **Butterbase gateway model IDs:** verify `anthropic/claude-sonnet-4.6` is live via
   `GET /v1/public/models`; fall back to an available ID.
 - **Discovery vs. attribution framing:** the demo's "find influencers" is forward-looking discovery;
-  pebble's engine ranks by *proven past* impact. Where a brand is new (no history), rank by
+  the engine ranks by *proven past* impact. Where a brand is new (no history), rank by
   category/competitor-mention signal and label it as such — stay honest.
 ```

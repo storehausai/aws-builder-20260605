@@ -11,7 +11,7 @@ import { chatStore } from "@/lib/chat-store";
 import type { OutreachResult } from "@/lib/api";
 
 /**
- * The chat workspace shell: pebble's cloned Sidebar (left) + a resizable
+ * The chat workspace shell: the Sidebar (left) + a resizable
  * two-pane split of ChatView (conversation) and PanelHost (the agent's panel).
  * Selecting / creating chats updates the URL via replaceState so a chat never
  * remounts mid-stream (ChatView is keyed by chatId for a clean per-chat mount).

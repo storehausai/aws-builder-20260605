@@ -1,8 +1,8 @@
 import { createClient, type ButterbaseClient, type ButterbaseResponse } from "@butterbase/sdk";
 
 /**
- * @pebble/bb — typed access to the Butterbase backend (replaces @pebble/db's
- * Supabase client). Same role: the canonical data layer + the AI gateway. The
+ * @pebble/bb — typed access to the Butterbase backend. The canonical data layer
+ * + the AI gateway. The
  * service key bypasses RLS, so it reads the GLOBAL moat and writes across stores
  * — server-only, NEVER ship it to the browser.
  */

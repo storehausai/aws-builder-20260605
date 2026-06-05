@@ -4,7 +4,7 @@ import { unwrap, unwrapMaybe } from "./client.js";
 /**
  * Butterbase has no native `upsert(onConflict)`, so we emulate it: for each row
  * (deduped by its natural key), check existence by the conflict columns, then
- * UPDATE or INSERT. This preserves pebble's idempotent-cache property — re-running
+ * UPDATE or INSERT. This preserves the idempotent-cache property — re-running
  * a tool MERGES on the natural key instead of duplicating — at the cost of a
  * read per row (fine at hackathon volumes; batch this later if it bites).
  */

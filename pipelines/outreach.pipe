@@ -1,0 +1,83 @@
+{
+  "pipeline": {
+    "description": "pebble outreach — steps 5-7: for an approved candidate, the agent composes a personalized DM, sends it as the brand via send_ig_dm, then notifies the marketer (iMessage relay card).",
+    "version": 1,
+    "source": "chat_1",
+    "project_id": "pebble-outreach",
+    "components": [
+      {
+        "id": "chat_1",
+        "provider": "chat",
+        "name": "Approve & DM trigger",
+        "config": { "mode": "Source" }
+      },
+      {
+        "id": "agent",
+        "provider": "agent_rocketride",
+        "name": "Pebble outreach agent",
+        "config": {
+          "max_waves": 8,
+          "instructions": [
+            "You are Pebble. For each approved influencer candidate, compose a short, warm, personalized",
+            "Instagram DM that references why this creator fits the brand (use the rationale). Keep it under",
+            "300 characters, no hashtags, human and specific. Then call send_ig_dm to deliver it as the brand,",
+            "and call notify_marketer to relay a 'DM sent to @handle' card to the marketer's iMessage."
+          ]
+        },
+        "input": [{ "lane": "questions", "from": "chat_1" }]
+      },
+      {
+        "id": "llm",
+        "provider": "llm_openai",
+        "name": "Butterbase gateway (Claude Sonnet 4.6)",
+        "config": {
+          "baseURL": "https://api.butterbase.ai/v1",
+          "model": "anthropic/claude-sonnet-4.6",
+          "apikey": "${ROCKETRIDE_BUTTERBASE_KEY}"
+        },
+        "control": [{ "classType": "llm", "from": "agent" }]
+      },
+      {
+        "id": "mem",
+        "provider": "memory_xtrace",
+        "name": "XTrace outcomes memory",
+        "config": {
+          "apiKey": "${XTRACE_API_KEY}",
+          "orgId": "${XTRACE_ORG_ID}"
+        },
+        "control": [{ "classType": "memory", "from": "agent" }]
+      },
+      {
+        "id": "send_ig_dm",
+        "provider": "tool_http_request",
+        "name": "send_ig_dm",
+        "config": {
+          "url": "${WEB_URL}/api/tools/send-ig-dm",
+          "method": "POST",
+          "description": "Send a personalized Instagram DM to @handle as the brand and record the outreach_thread / outreach_message rows.",
+          "headers": { "content-type": "application/json" }
+        },
+        "control": [{ "classType": "tool", "from": "agent" }]
+      },
+      {
+        "id": "notify_marketer",
+        "provider": "tool_http_request",
+        "name": "notify_marketer",
+        "config": {
+          "url": "${WEB_URL}/api/tools/notify-marketer",
+          "method": "POST",
+          "description": "Relay a 'DM sent to @handle' card to the marketer's iMessage via the Spectrum worker.",
+          "headers": { "content-type": "application/json" }
+        },
+        "control": [{ "classType": "tool", "from": "agent" }]
+      },
+      {
+        "id": "out",
+        "provider": "response_answers",
+        "name": "Answer",
+        "config": { "laneName": "answers" },
+        "input": [{ "lane": "answers", "from": "agent" }]
+      }
+    ]
+  }
+}

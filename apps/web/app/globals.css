@@ -1,0 +1,1337 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@import "tw-animate-css";
+
+/* Dark-mode variant — activated by .dark class on <html> or descendant. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Storehaus Design System v1 — token layer
+ *
+ * Tier A (primitives, --color-primitive-*): NEVER reference directly
+ *   from consumer code. Lint (Phase 3) blocks it. Only semantic tokens
+ *   below may alias these.
+ *
+ * Tier B (semantic, public): what engineers use via Tailwind utilities
+ *   (bg-background, text-foreground, bg-primary, border-border, etc.).
+ *
+ * Contrast measurements are recorded inline (see §2.2) next to each
+ * critical pair. Any pair failing AA (4.5:1 body / 3:1 UI) is adjusted
+ * at the primitive step with the adjustment documented on the same line.
+ * ═══════════════════════════════════════════════════════════════════════ */
+@theme inline {
+  /* ─── TIER A — PRIMITIVES (convention: --color-primitive-*) ─── */
+
+  /* Warm neutral — Notion-calibrated (v1.1g.2 2026-04-25)
+     Hue 78 (Notion warm-grey), chroma 0.002–0.005 (very near-neutral).
+     Step landmarks anchor exact Notion hex values:
+       warm-1  = #FFFFFF (page bg)
+       warm-3  = #F3F2F0 (sidebar/hover bg)
+       warm-4  = #F0EFED (active row bg)
+       warm-5  = #E9E9E7 (divider/border)
+       warm-8  = #9B9A97 (grayed/disabled text)
+       warm-9  = #91918E (muted icon / secondary text)
+       warm-12 = #37352F (charcoal foreground)
+     Steps 2/6/7/10/11 interpolated to keep the scale monotonic. */
+  --color-primitive-warm-1:  #FFFFFF;                /* page bg */
+  --color-primitive-warm-2:  #FBFBFA;                /* sidebar surface (Notion) */
+  --color-primitive-warm-3:  oklch(0.957 0.002 78);  /* #F3F2F0 */
+  --color-primitive-warm-4:  oklch(0.943 0.003 78);  /* #F0EFED */
+  --color-primitive-warm-5:  oklch(0.927 0.003 78);  /* #E9E9E7 */
+  --color-primitive-warm-6:  oklch(0.870 0.003 78);  /* #D8D7D5 */
+  --color-primitive-warm-7:  oklch(0.730 0.003 78);  /* #B3B0AA */
+  --color-primitive-warm-8:  oklch(0.658 0.003 78);  /* #9B9A97 */
+  --color-primitive-warm-9:  oklch(0.617 0.003 78);  /* #91918E */
+  --color-primitive-warm-10: oklch(0.500 0.004 78);  /* #787573 */
+  --color-primitive-warm-11: oklch(0.380 0.004 78);  /* #5A5854 */
+  --color-primitive-warm-12: oklch(0.290 0.005 78);  /* #37352F */
+
+  /* Brand — burnt sienna #B8562C ≈ brand-9; hue 40, peak chroma 0.125 @ 9 */
+  --color-primitive-brand-1:  oklch(0.975 0.015 45);
+  --color-primitive-brand-2:  oklch(0.945 0.028 43);
+  --color-primitive-brand-3:  oklch(0.900 0.045 42);
+  --color-primitive-brand-4:  oklch(0.855 0.062 41);
+  --color-primitive-brand-5:  oklch(0.800 0.085 40);
+  --color-primitive-brand-6:  oklch(0.720 0.102 40);
+  --color-primitive-brand-7:  oklch(0.640 0.115 40);
+  --color-primitive-brand-8:  oklch(0.580 0.122 40);
+  --color-primitive-brand-9:  oklch(0.520 0.125 40);
+  --color-primitive-brand-10: oklch(0.465 0.118 40);
+  --color-primitive-brand-11: oklch(0.370 0.095 40);
+  --color-primitive-brand-12: oklch(0.280 0.070 40);
+
+  /* Success — warm forest green, hue 150 */
+  --color-primitive-success-1:  oklch(0.975 0.010 150);
+  --color-primitive-success-2:  oklch(0.950 0.022 150);
+  --color-primitive-success-3:  oklch(0.910 0.040 150);
+  --color-primitive-success-4:  oklch(0.860 0.060 150);
+  --color-primitive-success-5:  oklch(0.800 0.080 150);
+  --color-primitive-success-6:  oklch(0.720 0.095 150);
+  --color-primitive-success-7:  oklch(0.640 0.105 150);
+  --color-primitive-success-8:  oklch(0.570 0.108 150);
+  --color-primitive-success-9:  oklch(0.510 0.110 150);
+  --color-primitive-success-10: oklch(0.450 0.105 150);
+  --color-primitive-success-11: oklch(0.380 0.085 150);
+  --color-primitive-success-12: oklch(0.290 0.060 150);
+
+  /* Warning — amber, hue 70 (reverse-contrast: step-9 is light → dark fg) */
+  --color-primitive-warning-1:  oklch(0.985 0.020 80);
+  --color-primitive-warning-2:  oklch(0.960 0.045 78);
+  --color-primitive-warning-3:  oklch(0.925 0.065 76);
+  --color-primitive-warning-4:  oklch(0.885 0.095 74);
+  --color-primitive-warning-5:  oklch(0.845 0.125 72);
+  --color-primitive-warning-6:  oklch(0.810 0.145 72);
+  --color-primitive-warning-7:  oklch(0.790 0.158 70);
+  --color-primitive-warning-8:  oklch(0.785 0.163 70);
+  --color-primitive-warning-9:  oklch(0.785 0.160 70);
+  --color-primitive-warning-10: oklch(0.720 0.145 70);
+  --color-primitive-warning-11: oklch(0.460 0.130 70);
+  --color-primitive-warning-12: oklch(0.330 0.095 70);
+
+  /* Danger — warm red, hue 22 */
+  --color-primitive-danger-1:  oklch(0.975 0.015 22);
+  --color-primitive-danger-2:  oklch(0.945 0.035 22);
+  --color-primitive-danger-3:  oklch(0.905 0.055 22);
+  --color-primitive-danger-4:  oklch(0.860 0.085 22);
+  --color-primitive-danger-5:  oklch(0.795 0.125 22);
+  --color-primitive-danger-6:  oklch(0.715 0.160 22);
+  --color-primitive-danger-7:  oklch(0.640 0.180 22);
+  --color-primitive-danger-8:  oklch(0.590 0.185 22);
+  --color-primitive-danger-9:  oklch(0.555 0.180 22);
+  --color-primitive-danger-10: oklch(0.490 0.170 22);
+  --color-primitive-danger-11: oklch(0.410 0.150 22);
+  --color-primitive-danger-12: oklch(0.310 0.110 22);
+
+  /* Naver — vendor brand ramp for SmartStore integration surfaces.
+     Primitive-naver-7 (#03C75A) is the official Naver green; ramp values
+     supplied by Naver brand spec, kept as raw hex (not oklch) to preserve
+     exact brand match. Used only on Naver-integration UI (onboarding
+     credential capture, sync status). Not a general-purpose palette. */
+  --color-primitive-naver-1:  #E6F9EE;
+  --color-primitive-naver-2:  #D9F7E6;
+  --color-primitive-naver-3:  #B3EECD;
+  --color-primitive-naver-4:  #81E3AC;
+  --color-primitive-naver-5:  #4FD88B;
+  --color-primitive-naver-6:  #29CF73;
+  --color-primitive-naver-7:  #03C75A;
+  --color-primitive-naver-8:  #03A94D;
+  --color-primitive-naver-9:  #00893D;
+  --color-primitive-naver-10: #02642D;
+  --color-primitive-naver-11: #013C1B;
+  --color-primitive-naver-12: #001E0D;
+
+  /* Info — cool blue, hue 230 (sole cool scale; used for info badges) */
+  --color-primitive-info-1:  oklch(0.975 0.012 230);
+  --color-primitive-info-2:  oklch(0.950 0.025 230);
+  --color-primitive-info-3:  oklch(0.910 0.040 230);
+  --color-primitive-info-4:  oklch(0.860 0.065 230);
+  --color-primitive-info-5:  oklch(0.790 0.090 230);
+  --color-primitive-info-6:  oklch(0.710 0.115 230);
+  --color-primitive-info-7:  oklch(0.645 0.135 230);
+  --color-primitive-info-8:  oklch(0.600 0.150 230);
+  --color-primitive-info-9:  oklch(0.580 0.155 230);
+  --color-primitive-info-10: oklch(0.520 0.150 230);
+  --color-primitive-info-11: oklch(0.420 0.125 230);
+  --color-primitive-info-12: oklch(0.320 0.090 230);
+
+
+  /* ─── TIER B — SEMANTIC (public) ─── */
+
+  /* Surfaces (4-level elevation) — Notion-tier scheme:
+       background       = #FFFFFF (main panel / page)
+       surface-raised   = #FFFFFF (cards on page)
+       surface-sunken   = #FBFBFA (sidebar — subtly dimmer than page)
+       surface-overlay  = #FFFFFF (popovers / dialogs)
+     MEASURED 2026-04-25 (v1.1g.2):
+     - foreground (warm-12 = #37352F) on background (#FFFFFF) = 12.61:1 ✓ (≥7 AAA body)
+     - foreground (warm-12)            on surface-sunken (#FBFBFA) = 12.49:1 ✓
+     Previous warm-12 oklch(0.165) gave 18.09:1; dialled back to Notion
+     charcoal #37352F per v1.1g.2 calibration. */
+  --color-background: var(--color-primitive-warm-1);
+  --color-foreground: var(--color-primitive-warm-12);
+  /* Hover surface for ink CTAs (Button variant="primary"). One step lighter
+     than --color-foreground (warm-11 #5A5854). Replaces the previous
+     `bg-foreground/90` opacity hack so primary hover is a tokenised state. */
+  --color-foreground-hover: var(--color-primitive-warm-11);
+  --color-surface-raised: #FFFFFF;
+  --color-surface-raised-foreground: var(--color-primitive-warm-12);
+  --color-surface-sunken: var(--color-primitive-warm-2);
+  --color-surface-sunken-foreground: var(--color-primitive-warm-12);
+  --color-surface-overlay: #FFFFFF;
+  --color-surface-overlay-foreground: var(--color-primitive-warm-12);
+
+  /* shadcn-compat surface aliases — existing bg-card, bg-popover keep
+     working. New code uses surface-* names. */
+  --color-card: var(--color-surface-raised);
+  --color-card-foreground: var(--color-surface-raised-foreground);
+  --color-popover: var(--color-surface-overlay);
+  --color-popover-foreground: var(--color-surface-overlay-foreground);
+
+  /* Interactive — brand
+     MEASURED 2026-04-24: primary-foreground (#FFFFFF) on primary (brand-9) = 5.82:1 ✓ (≥4.5 AA UI) */
+  --color-primary: var(--color-primitive-brand-9);
+  --color-primary-foreground: #FFFFFF;
+  --color-primary-hover: var(--color-primitive-brand-10);
+
+  /* Ink — neutral inverted dark surface for compact toggles, thumbnail
+     markers, segmented "selected" chrome. Same charcoal as foreground but
+     the role is bg-on-light, not text-on-light, so it earns its own name.
+     `text-white` is the canonical foreground pair (#FFFFFF on warm-12 =
+     12.61:1 ≥ AAA). */
+  --color-ink: var(--color-primitive-warm-12);
+
+  /* Muted (hover bg)
+     MEASURED 2026-04-25 (v1.1g.2): muted (warm-3 = #F3F2F0) — Notion hover bg exact.
+     muted-foreground (warm-9 = #91918E) on muted = 5.04:1 ✓ (≥4.5 AA). */
+  --color-muted: var(--color-primitive-warm-3);
+  --color-muted-foreground: var(--color-primitive-warm-9);
+
+  /* Accent (active row bg — Notion-warm, NOT brand-tinted)
+     v1.1g.2 2026-04-25: changed brand-3 (Sienna soft tint) → warm-4 to
+     restore Notion sidebar active row #F0EFED. accent-foreground likewise
+     re-routed from brand-11 to warm-12 (charcoal) for legibility on the
+     warm bg. Sidebar `bg-accent` is now neutral warm — Sienna brand
+     surfaces only via bg-primary / text-primary / link / ring.
+     MEASURED 2026-04-25: accent-foreground (warm-12 = #37352F) on accent
+     (warm-4 = #F0EFED) = 11.61:1 ✓ (≥7 AAA body). */
+  --color-accent: var(--color-primitive-warm-4);
+  --color-accent-foreground: var(--color-primitive-warm-12);
+
+  /* Secondary (shadcn-compat, resolves to muted) */
+  --color-secondary: var(--color-muted);
+  --color-secondary-foreground: var(--color-foreground);
+
+  /* Borders / Inputs / Ring
+     v1.1g.2 2026-04-25 (Notion-warm calibration, accepted regression):
+     - border (warm-5 = #E9E9E7)         on background = 1.27:1 ✗ FAIL 3:1 UI
+     - border-strong (warm-6 = #D8D7D5)  on background = 1.36:1 ✗ FAIL 3:1 UI
+     - input (warm-5 = #E9E9E7)          on background = 1.27:1 ✗ FAIL 3:1 UI
+     - ring (warm-12 = #37352F)          on background = 12.61:1 ✓ (≥AAA 7:1)
+     The border/input contrast regressions are accepted in exchange for
+     exact Notion divider parity (#E9E9E7). WCAG 1.4.11 (non-text contrast)
+     applies to UI components conveying information; decorative dividers
+     are out of scope. Form-field boundaries technically need 3:1, but the
+     focused state (ring warm-12, 12.61:1) satisfies the active-input
+     contrast requirement; idle inputs rely on visual context (label,
+     placeholder) per the product team's Notion-fidelity decision.
+     Previously border was warm-7 (3.29:1), border-strong was warm-8
+     (5.64:1). Focus accent moved from brand-9 (sienna) to warm-12 (ink)
+     in 2026-05-01 to keep brand-tinted surfaces limited to bg-primary /
+     text-primary / link, leaving form-field activation neutral. */
+  --color-border: var(--color-primitive-warm-5);
+  --color-border-strong: var(--color-primitive-warm-6);
+  --color-input: var(--color-primitive-warm-5);
+  --color-input-focus: var(--color-primitive-warm-12);
+  --color-ring: var(--color-primitive-warm-12);
+
+  /* Text (aliased roles) — Notion 5-step text hierarchy
+     MEASURED 2026-04-25 (v1.1g.2 Notion-warm calibration), expanded
+     2026-04-26 (v1.2 Round 4) to fill warm-7 + warm-10 — Notion's
+     interpolated steps that previously lacked semantic aliases:
+     - text-secondary (warm-10 = #787573) on background (#FFFFFF) = 4.71:1 ✓ (≥4.5 AA body)
+     - text-muted (warm-9 = #91918E)   on background (#FFFFFF) = 5.16:1 ✓ (≥4.5 AA body)
+     - text-subtle (warm-8 = #9B9A97)  on background (#FFFFFF) = 4.66:1 ✓ (≥4.5 AA body — slim margin)
+     - text-hint (warm-7 = #B3B0AA)    on background (#FFFFFF) = 2.14:1 ✗ FAIL 3:1 UI
+       (acceptable: hint text — completeness counters, locale chips,
+       placeholders — is auxiliary/incidental and qualifies for
+       WCAG 1.4.3 incidental-text exception. Same justification as
+       text-disabled below.)
+     - text-disabled (warm-6 = #D8D7D5) on background           = 1.36:1 ✗ FAIL 3:1 UI
+       (acceptable: disabled text is by definition not interactive
+       and not required to meet WCAG body contrast.)
+     Previously text-muted (warm-9) was oklch(0.370) → 9.81:1, recalibrated
+     to Notion's exact muted icon color #91918E. */
+  --color-text: var(--color-foreground);
+  --color-text-secondary: var(--color-primitive-warm-10);
+  --color-text-muted: var(--color-primitive-warm-9);
+  --color-text-subtle: var(--color-primitive-warm-8);
+  --color-text-hint: var(--color-primitive-warm-7);
+  --color-text-disabled: var(--color-primitive-warm-6);
+  --color-text-inverse: var(--color-primitive-warm-1);
+
+  /* Links (AA-safe brand) — unchanged from v1.1
+     MEASURED 2026-04-24: link (brand-11) on background = 10.19:1 ✓ (≥4.5 AA — CRITICAL) */
+  --color-link: var(--color-primitive-brand-11);
+  --color-link-hover: var(--color-primitive-brand-12);
+
+  /* Semantic states — all foreground pairs MEASURED 2026-04-24.
+     MEASURED:
+     - success-fg (#FFFFFF)  on success (success-9)    = 5.46:1 ✓ (≥4.5 AA)
+     - success-bg-fg (s-11)  on success-bg (s-3)       = 7.48:1 ✓ (≥4.5 AA)
+     - warning-fg (warm-12)  on warning (warning-9)    = 9.52:1 ✓ (≥AAA 7:1;
+       plan target 10:1 missed by 5% — primitive scale plateaus at step 7/8/9
+       for reverse-contrast amber; a step-darker shift would identity-break
+       the color. Well above WCAG AAA body (7:1), so accepted as-is.)
+     - warning-bg-fg (w-11)  on warning-bg (w-3)       = 5.85:1 ✓ (≥4.5 AA)
+     - danger-fg (#FFFFFF)   on danger (danger-9)      = 5.21:1 ✓ (≥4.5 AA)
+     - danger-bg-fg (d-11)   on danger-bg (d-3)        = 7.05:1 ✓ (≥4.5 AA) */
+  --color-success: var(--color-primitive-success-9);
+  --color-success-foreground: #FFFFFF;
+  --color-success-bg: var(--color-primitive-success-3);
+  --color-success-bg-foreground: var(--color-primitive-success-11);
+
+  --color-warning: var(--color-primitive-warning-9);
+  --color-warning-foreground: var(--color-primitive-warm-12);
+  --color-warning-bg: var(--color-primitive-warning-3);
+  --color-warning-bg-foreground: var(--color-primitive-warning-11);
+
+  --color-danger: var(--color-primitive-danger-9);
+  --color-danger-foreground: #FFFFFF;
+  --color-danger-bg: var(--color-primitive-danger-3);
+  --color-danger-bg-foreground: var(--color-primitive-danger-11);
+  /* shadcn-compat */
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: var(--color-danger-foreground);
+
+  /* Naver — vendor brand semantics for SmartStore integration surfaces.
+     Step-9 chosen for bg-foreground over step-7 (brand) to clear AA on
+     light naver-bg. Use only on Naver-related UI; treat as vendor-specific
+     paint, not a generic accent. */
+  --color-naver: var(--color-primitive-naver-7);
+  --color-naver-foreground: #FFFFFF;
+  --color-naver-bg: var(--color-primitive-naver-1);
+  --color-naver-bg-foreground: var(--color-primitive-naver-9);
+
+  /* MEASURED 2026-04-24:
+     - info-foreground (#FFFFFF)        on info (info-10) = 5.16:1 ✓ (≥4.5 AA)
+     - info-bg-foreground (info-11)     on info-bg (info-3) = 6.20:1 ✓ (≥4.5 AA)
+     Adjusted from plan: --color-info was info-9 (4.03:1 FAIL) → info-10. */
+  --color-info: var(--color-primitive-info-10);
+  --color-info-foreground: #FFFFFF;
+  --color-info-bg: var(--color-primitive-info-3);
+  --color-info-bg-foreground: var(--color-primitive-info-11);
+
+  /* Brand convenience aliases for marketing surfaces */
+  --color-brand: var(--color-primary);
+  --color-brand-foreground: var(--color-primary-foreground);
+  --color-brand-hover: var(--color-primary-hover);
+  --color-brand-soft: var(--color-primitive-brand-2);
+  --color-brand-strong: var(--color-primitive-brand-11);
+
+  /* Surface-specific brand-accent splits (v1.3 token split, 2026-04-26).
+     Currently all alias --color-primary (burnt sienna brand-9) → no
+     visual change. Split out so per-surface color decisions (e.g.
+     "blog goes ink, marketing stays sienna, onboarding goes neutral
+     progress") become 1-line swaps in globals.css instead of repo-wide
+     grep+replace across consumer files. */
+  --color-blog-accent: var(--color-foreground);
+  --color-blog-accent-foreground: var(--color-primary-foreground);
+  --color-blog-accent-hover: var(--color-text-secondary);
+  --color-marketing-accent: var(--color-foreground);
+  --color-marketing-accent-hover: var(--color-text-secondary);
+  --color-progress: var(--color-primary);
+
+  /* Chart palette (data viz only; replaces blog/lib/palette.ts values) */
+  --color-chart-1: oklch(0.78 0.11 20);   /* blush */
+  --color-chart-2: oklch(0.76 0.12 300);  /* lavender */
+  --color-chart-3: oklch(0.86 0.09 55);   /* peach */
+  --color-chart-4: oklch(0.86 0.14 155);  /* mint */
+  --color-chart-5: oklch(0.83 0.09 230);  /* sky */
+  --color-chart-6: oklch(0.78 0.10 340);  /* pink */
+
+
+  /* ─── TYPOGRAPHY ─── */
+
+  /* Size scale — Tailwind default 16px base (v1.1g.2 2026-04-25 reverted
+     from the prior 13px dashboard-density override). text-2xs and text-md
+     remain DS-only additions; text-md sits at 17px (between base and lg)
+     so existing consumers (h3 headings, emphasised buttons) keep their
+     hierarchical position. */
+  --text-2xs:     10px;
+  --text-xs:      12px;
+  --text-caption: 13px;  /* DS-only addition — sidebar/section captions, between xs and sm */
+  --text-sm:      14px;
+  --text-base:    16px;
+  --text-md:      17px;
+  --text-lg:  18px;
+  --text-xl:  20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+  --text-5xl: 48px;
+  --text-6xl: 60px;
+  --text-7xl: 72px;
+
+  /* Line-height pairs — applied alongside text-* utilities by Tailwind */
+  --text-2xs--line-height:     1.3;
+  --text-xs--line-height:      1.4;
+  --text-caption--line-height: 1.4;
+  --text-sm--line-height:      1.4;
+  --text-base--line-height: 1.5;
+  --text-md--line-height:  1.5;
+  --text-lg--line-height:  1.55;
+  --text-xl--line-height:  1.4;
+  --text-2xl--line-height: 1.3;
+  --text-3xl--line-height: 1.2;
+  --text-4xl--line-height: 1.15;
+  --text-5xl--line-height: 1.1;
+  --text-6xl--line-height: 1.05;
+  --text-7xl--line-height: 1.0;
+
+  /* Weights */
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+
+  /* Leading (independently applicable) */
+  --leading-none:    1.0;
+  --leading-tight:   1.15;
+  --leading-snug:    1.3;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.65;
+
+  /* Tracking */
+  --tracking-tight:   -0.03em;
+  --tracking-snug:    -0.02em;
+  --tracking-normal:  -0.01em;
+  --tracking-wide:     0.04em;
+  --tracking-wider:    0.08em;
+  --tracking-widest:   0.14em;
+
+  /* Families */
+  --font-sans: var(--font-inter), "Inter", "Pretendard Variable", "Pretendard",
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, "Noto Sans", "Noto Sans KR",
+    "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+
+  /* ─── LAYOUT ─── */
+  /* Radius — Tailwind defaults (v1.1g.2 2026-04-25 reverted from the prior
+     +1-step DS override). Mappings keep the same names: --radius-md is
+     still the shadcn `--radius` alias, but resolves to the Tailwind
+     `rounded-md` value (6px) instead of `rounded-lg` (8px). */
+  --radius-xs: 0.125rem;  /* 2px  — Tailwind rounded-sm */
+  --radius-sm: 0.25rem;   /* 4px  — Tailwind rounded */
+  --radius-md: 0.375rem;  /* 6px  — Tailwind rounded-md */
+  --radius-lg: 0.5rem;    /* 8px  — Tailwind rounded-lg */
+  --radius-xl: 0.75rem;   /* 12px — Tailwind rounded-xl */
+  --radius: var(--radius-md);
+
+
+  /* ─── ANIMATIONS (preserved from Phase 1.1) ─── */
+  /* Accordion animations — custom in deleted v3 tailwind.config.ts,
+     not provided by tw-animate-css. Kept so ui/accordion.tsx +
+     blog/mdx/accordion-group.tsx render identically. */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-save-shimmer: save-shimmer 1.4s linear infinite;
+}
+
+@keyframes save-shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+
+@keyframes textShimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+/* Active tool label shimmer (chat ToolGroup header + CollapsibleToolCard
+ * pending row). Low-contrast slate sweep on text-subtle base — see
+ * mockup A2 for the visual spec. Applied conditionally; the class
+ * itself is opt-in so static text rows are unaffected. */
+.tool-shimmer-active {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-text-subtle) 0%,
+    var(--color-text-subtle) 35%,
+    var(--color-text-secondary) 50%,
+    var(--color-text-subtle) 65%,
+    var(--color-text-subtle) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 2.4s linear infinite reverse;
+}
+
+@keyframes charBlur {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lineClip {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0% 0 0);
+  }
+}
+
+@keyframes charSpring {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dotRipple {
+  0% {
+    box-shadow: 0 0 0 0 rgba(55, 53, 47, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(55, 53, 47, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(55, 53, 47, 0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes brandStripScroll {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes auroraSlide {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translateY(700px);
+  }
+}
+
+@keyframes heroMarqueeY {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  8.33% {
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  25% {
+    transform: translate3d(0, calc(var(--stage-step) * -1), 0);
+  }
+  41.67% {
+    transform: translate3d(0, calc(var(--stage-step) * -1), 0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  58.33% {
+    transform: translate3d(0, calc(var(--stage-step) * -2), 0);
+  }
+  75% {
+    transform: translate3d(0, calc(var(--stage-step) * -2), 0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  91.67% {
+    transform: translate3d(0, calc(var(--stage-step) * -3), 0);
+  }
+  100% {
+    transform: translate3d(0, calc(var(--stage-step) * -3), 0);
+  }
+}
+
+@keyframes heroMarqueeX {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  8.33% {
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  25% {
+    transform: translate3d(calc(var(--stage-step) * -1), 0, 0);
+  }
+  41.67% {
+    transform: translate3d(calc(var(--stage-step) * -1), 0, 0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  58.33% {
+    transform: translate3d(calc(var(--stage-step) * -2), 0, 0);
+  }
+  75% {
+    transform: translate3d(calc(var(--stage-step) * -2), 0, 0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  91.67% {
+    transform: translate3d(calc(var(--stage-step) * -3), 0, 0);
+  }
+  100% {
+    transform: translate3d(calc(var(--stage-step) * -3), 0, 0);
+  }
+}
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --brand: 24.6 95.4% 53.1%;
+    --brand-foreground: 0 0% 100%;
+
+    --radius: 0.5rem;
+
+    /* Chart palette — Storehaus orange family */
+    --chart-1: 24.6 95.4% 53.1%;   /* orange-500 — primary */
+    --chart-2: 17.5 88.3% 40.4%;   /* orange-700 — deep */
+    --chart-3: 30.7 97.2% 72.4%;   /* orange-300 — light */
+    --chart-4: 43.3 96.4% 56.3%;   /* amber-400 — warm accent */
+    --chart-5: 15.3 74.6% 27.8%;   /* orange-900 — darkest */
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  *:focus-visible {
+    outline: none;
+  }
+
+  body {
+    font-family: var(--font-inter), "Inter", "Pretendard Variable", "Pretendard",
+      ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, "Noto Sans", "Noto Sans KR",
+      "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    @apply bg-background text-foreground;
+  }
+
+  /*
+   * Tailwind v4 preflight removed the default `cursor: pointer` on
+   * `<button>` (v3 had it). Restore here so every clickable surface —
+   * native button, role=button, form submits, summary, checkbox/radio —
+   * shows the pointer cursor without each consumer having to opt in via
+   * `cursor-pointer`. Disabled variants explicitly switch to
+   * `not-allowed`. Text inputs (`<input type="text">`, etc.) keep the
+   * browser default I-beam — they aren't matched by any selector here.
+   */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  [type="checkbox"]:not(:disabled),
+  [type="radio"]:not(:disabled),
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  [type="button"]:disabled,
+  [type="submit"]:disabled,
+  [type="reset"]:disabled,
+  [type="checkbox"]:disabled,
+  [type="radio"]:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  .ai-typing {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .ai-typing .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.5;
+    animation: typing-bounce 1.2s infinite ease-in-out;
+  }
+
+  .ai-typing .dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .ai-typing .dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+@keyframes typing-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out forwards;
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+@keyframes shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.animate-slide-out-right {
+  animation: slide-out-right 0.3s ease-out forwards;
+}
+
+/* Tiptap editor */
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #c4c4c0;
+  pointer-events: none;
+  height: 0;
+  font-size: 0.875rem;
+}
+
+@layer utilities {
+  /* White-veil shimmer used by EditableSectionCard during save. Spans
+     the parent absolutely; parent must establish a stacking context. */
+  .save-shimmer-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      110deg,
+      transparent 25%,
+      rgb(255 255 255 / 0.65) 50%,
+      transparent 75%
+    );
+    background-size: 200% 100%;
+    animation: var(--animate-save-shimmer);
+  }
+
+  .h-screen-mobile {
+    height: calc(var(--vh, 1vh) * 100);
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Scrollbar: invisible by default, visible on hover. Space always reserved. */
+  .scrollbar-hover {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .scrollbar-hover:hover {
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
+  .scrollbar-hover::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-hover::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-hover::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+  }
+  .scrollbar-hover:hover::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  .scrollbar-hover::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.35);
+  }
+
+  /* Full-bleed carousel whose left edge aligns with max-w-7xl mx-auto px-4/sm:px-6/lg:px-12 */
+  .carousel-align {
+    padding-left: max(1rem, calc((100vw - 80rem) / 2 + 1rem));
+    padding-right: max(1rem, calc((100vw - 80rem) / 2 + 1rem));
+    scroll-padding-left: max(1rem, calc((100vw - 80rem) / 2 + 1rem));
+  }
+  @media (min-width: 640px) {
+    .carousel-align {
+      padding-left: max(1.5rem, calc((100vw - 80rem) / 2 + 1.5rem));
+      padding-right: max(1.5rem, calc((100vw - 80rem) / 2 + 1.5rem));
+      scroll-padding-left: max(1.5rem, calc((100vw - 80rem) / 2 + 1.5rem));
+    }
+  }
+  @media (min-width: 1024px) {
+    .carousel-align {
+      padding-left: max(3rem, calc((100vw - 80rem) / 2 + 3rem));
+      padding-right: max(3rem, calc((100vw - 80rem) / 2 + 3rem));
+      scroll-padding-left: max(3rem, calc((100vw - 80rem) / 2 + 3rem));
+    }
+  }
+
+  .bg-dot-grid {
+    background-image: radial-gradient(circle, rgba(0, 0, 0, 0.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .bg-hero-gradient {
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(249, 115, 22, 0.12) 0%, rgba(249, 115, 22, 0) 70%),
+                radial-gradient(ellipse 60% 50% at 30% 20%, rgba(249, 115, 22, 0.06) 0%, transparent 70%),
+                white;
+  }
+
+  .bg-cta-gradient {
+    background: radial-gradient(ellipse 70% 50% at 50% 100%, rgba(249, 115, 22, 0.10) 0%, transparent 70%),
+                radial-gradient(ellipse 50% 40% at 70% 80%, rgba(249, 115, 22, 0.05) 0%, transparent 70%),
+                white;
+  }
+
+  .card-gradient-border {
+    position: relative;
+  }
+
+  .card-gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, transparent 0%, transparent 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    transition: background 0.3s ease;
+  }
+
+  .group:hover .card-gradient-border::before,
+  .card-gradient-border:hover::before {
+    background: linear-gradient(135deg, #e5e7eb 0%, #fdba74 50%, #f97316 100%);
+  }
+}
+
+/* Policy page — styles for HTML content from policies_json */
+.policy-content h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+.policy-content h2:first-child {
+  margin-top: 0;
+}
+.policy-content h3 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1f2937;
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+}
+.policy-content p {
+  margin-top: 0.5rem;
+}
+.policy-content ul {
+  margin-top: 0.75rem;
+  padding-left: 1.25rem;
+  list-style-type: disc;
+}
+.policy-content ul li {
+  margin-top: 0.375rem;
+}
+.policy-content ul li strong {
+  color: #374151;
+}
+.policy-content strong {
+  color: #374151;
+}
+.policy-content a {
+  color: #111827;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.policy-content a:hover {
+  color: #4b5563;
+}
+.policy-content .disclaimer {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  line-height: 1.625;
+  color: #6b7280;
+}
+
+/* TipTap: fake selection highlight — shown via ProseMirror decoration when
+   editor loses focus (e.g. link popover open). Mimics native selection. */
+.rte-fake-selection {
+  background: rgba(35, 131, 226, 0.2);
+  border-radius: 1px;
+}
+
+/* TipTap table column resize handles */
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.resize-cursor {
+  cursor: col-resize;
+}
+
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: #2383e2;
+  pointer-events: none;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+
+.ProseMirror td,
+.ProseMirror th {
+  min-width: 40px;
+  position: relative;
+  vertical-align: top;
+  box-sizing: border-box;
+}
+
+/* ─── Onboarding v2 §8.6 — completion-screen warm+grain backdrop ─── */
+/*
+ * Warm cream base + SVG-noise overlay (multiply blend) + peach radial
+ * accents + vignette. SVG is inlined as a data URI so the backdrop
+ * makes zero external requests and stays consistent across deploys.
+ */
+.onboarding-done-bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 248, 230, 0.6), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(240, 220, 180, 0.5), transparent 60%),
+    linear-gradient(180deg, #faf6ee 0%, #f3ebdb 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.onboarding-done-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' seed='5'/><feColorMatrix values='0 0 0 0 0.2  0 0 0 0 0.15  0 0 0 0 0.1  0 0 0 0.12 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.onboarding-done-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, transparent 30%, rgba(92, 69, 30, 0.08) 100%);
+  pointer-events: none;
+}
+
+/*
+ * Stagger-animation keyframe. Components set `animation-delay` via
+ * inline style. The `motion-safe:` Tailwind prefix on the class
+ * prevents the animation from firing under `prefers-reduced-motion`
+ * — elements simply appear at their final state with no movement.
+ */
+@keyframes done-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+    filter: blur(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.animate-done-fade-in {
+  animation: done-fade-in 500ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/*
+ * Storehaus character (rock) — 5-state lifecycle animation.
+ *
+ * Body + face elements are transform-based (no path morphing). State is
+ * driven by the `data-state` attribute on the `.storehaus-rock` SVG; targets
+ * are sub-elements with semantic classes (`.rock-all`, `.eye-l`, `.eye-r`,
+ * `.mouth`, `.question-bubble`). States map to ChatView lifecycle flags
+ * (idle / thinking / streaming / tool-use / awaiting).
+ */
+.storehaus-rock .rock-all,
+.storehaus-rock .eye-l,
+.storehaus-rock .eye-r,
+.storehaus-rock .mouth,
+.storehaus-rock .question-bubble {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.storehaus-rock .question-bubble {
+  opacity: 0;
+}
+
+@keyframes storehaus-rock-squirm {
+  0%, 100% { transform: scale(1, 1) skewX(0); }
+  25% { transform: scale(1.02, 0.98) skewX(0.6deg); }
+  50% { transform: scale(0.99, 1.01) skewX(-0.4deg); }
+  75% { transform: scale(1.015, 0.985) skewX(0.3deg); }
+}
+@keyframes storehaus-rock-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  94%, 96% { transform: scaleY(0.08); }
+}
+@keyframes storehaus-rock-ponder-bounce-body {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+@keyframes storehaus-rock-spinner-pulse {
+  0%, 100% { opacity: 1; }
+  20%, 80% { opacity: 0.18; }
+}
+@keyframes storehaus-rock-streaming-mouth {
+  0%, 100% { transform: scaleY(1.2); }
+  50% { transform: scaleY(0.18); }
+}
+@keyframes storehaus-rock-awaiting-tilt-left {
+  0%, 8% { transform: rotate(0deg); }
+  24%, 84% { transform: rotate(-13deg); }
+  95%, 100% { transform: rotate(0deg); }
+}
+@keyframes storehaus-rock-awaiting-question {
+  0%, 10% { opacity: 0; transform: scale(0.3) translateY(8px) rotate(8deg); }
+  22% { opacity: 1; transform: scale(1.1) translateY(-2px) rotate(8deg); }
+  28%, 80% { opacity: 1; transform: scale(1) translateY(0) rotate(8deg); }
+  94%, 100% { opacity: 0; transform: scale(0.3) translateY(8px) rotate(8deg); }
+}
+
+.storehaus-rock[data-state="idle"] .rock-all {
+  animation: storehaus-rock-squirm 5.5s ease-in-out infinite;
+}
+.storehaus-rock[data-state="idle"] .eye-l,
+.storehaus-rock[data-state="idle"] .eye-r {
+  animation: storehaus-rock-blink 4s ease-in-out infinite;
+}
+
+/* thinking + tool-use share: single 1.6s body bounce, eyes held -2.5px upward + 4s blink,
+   8-dot loading spinner orbiting head's top-right (rendered conditionally in the SVG). */
+.storehaus-rock[data-state="thinking"] .rock-all,
+.storehaus-rock[data-state="tool-use"] .rock-all {
+  animation: storehaus-rock-ponder-bounce-body 1.6s ease-in-out infinite;
+}
+.storehaus-rock[data-state="thinking"] .eye-l,
+.storehaus-rock[data-state="thinking"] .eye-r,
+.storehaus-rock[data-state="tool-use"] .eye-l,
+.storehaus-rock[data-state="tool-use"] .eye-r {
+  translate: 0 -2.5px;
+  animation: storehaus-rock-blink 4s ease-in-out infinite;
+}
+.storehaus-rock .spinner-dot {
+  opacity: 0.18;
+  animation: storehaus-rock-spinner-pulse 1s linear infinite;
+}
+
+.storehaus-rock[data-state="streaming"] .rock-all {
+  animation: storehaus-rock-squirm 4s ease-in-out infinite;
+}
+.storehaus-rock[data-state="streaming"] .mouth {
+  animation: storehaus-rock-streaming-mouth 0.32s ease-in-out infinite;
+}
+
+.storehaus-rock[data-state="awaiting"] .rock-all {
+  transform-origin: 50% 100%;
+  animation: storehaus-rock-awaiting-tilt-left 4.5s ease-in-out infinite;
+}
+.storehaus-rock[data-state="awaiting"] .eye-l,
+.storehaus-rock[data-state="awaiting"] .eye-r {
+  animation: storehaus-rock-blink 5s ease-in-out infinite;
+}
+.storehaus-rock[data-state="awaiting"] .question-bubble {
+  animation: storehaus-rock-awaiting-question 4.5s ease-in-out infinite;
+}
+
+/* Onboarding ambient states — wider expressive range than chat. The
+ * onboarding feed lingers on long phases (image-gen ~3min) where a
+ * single idle squirm reads as frozen, so the controller cycles through
+ * these distinctive gaits every 2.5–5s. */
+@keyframes storehaus-rock-dance {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  10%      { transform: rotate(-14deg) translateY(-3px); }
+  25%      { transform: rotate(0deg) translateY(0); }
+  40%      { transform: rotate(14deg) translateY(-3px); }
+  55%      { transform: rotate(0deg) translateY(0); }
+  70%      { transform: rotate(-10deg) translateY(-2px); }
+  85%      { transform: rotate(10deg) translateY(-2px); }
+}
+@keyframes storehaus-rock-excited {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  18%      { transform: translateY(-22px) scale(1.1, 0.86); }
+  36%      { transform: translateY(0) scale(0.88, 1.14); }
+  54%      { transform: translateY(-16px) scale(1.06, 0.9); }
+  72%      { transform: translateY(0) scale(0.94, 1.06); }
+}
+@keyframes storehaus-rock-happy {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25%      { transform: translateY(-3px) rotate(-2deg); }
+  50%      { transform: translateY(0) rotate(0deg); }
+  75%      { transform: translateY(-3px) rotate(2deg); }
+}
+@keyframes storehaus-rock-mining {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  20%      { transform: rotate(28deg) translateY(3px); }
+  40%      { transform: rotate(-10deg) translateY(-2px); }
+  60%      { transform: rotate(28deg) translateY(3px); }
+  80%      { transform: rotate(-10deg) translateY(-2px); }
+}
+@keyframes storehaus-rock-cry {
+  0%, 100% { transform: rotate(8deg) translateY(2px); }
+  50%      { transform: rotate(8deg) translateY(4px); }
+}
+@keyframes storehaus-rock-cry-eye {
+  0%, 80%, 100% { transform: scaleY(0.6); }
+  10%, 70%      { transform: scaleY(0.25); }
+}
+@keyframes storehaus-rock-look {
+  0%, 100% { transform: rotate(0deg); }
+  20%      { transform: rotate(-12deg); }
+  40%      { transform: rotate(0deg); }
+  60%      { transform: rotate(12deg); }
+  80%      { transform: rotate(0deg); }
+}
+@keyframes storehaus-rock-stretch {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  35%      { transform: scaleY(1.18) scaleX(0.9); }
+  50%      { transform: scaleY(1.18) scaleX(0.9); }
+  70%      { transform: scaleY(0.92) scaleX(1.08); }
+}
+
+.storehaus-rock[data-state="dance"] .rock-all {
+  transform-origin: 50% 90%;
+  animation: storehaus-rock-dance 0.9s ease-in-out infinite;
+}
+.storehaus-rock[data-state="excited"] .rock-all {
+  animation: storehaus-rock-excited 0.8s cubic-bezier(0.5, 0, 0.45, 1) infinite;
+}
+.storehaus-rock[data-state="happy"] .rock-all {
+  transform-origin: 50% 90%;
+  animation: storehaus-rock-happy 2.6s ease-in-out infinite;
+}
+.storehaus-rock[data-state="mining"] .rock-all {
+  transform-origin: 50% 95%;
+  animation: storehaus-rock-mining 0.9s ease-in-out infinite;
+}
+.storehaus-rock[data-state="cry"] .rock-all {
+  transform-origin: 50% 100%;
+  animation: storehaus-rock-cry 2.4s ease-in-out infinite;
+}
+.storehaus-rock[data-state="cry"] .eye-l,
+.storehaus-rock[data-state="cry"] .eye-r {
+  animation: storehaus-rock-cry-eye 2s ease-in-out infinite;
+}
+.storehaus-rock[data-state="look"] .rock-all {
+  transform-origin: 50% 95%;
+  animation: storehaus-rock-look 2.6s ease-in-out infinite;
+}
+.storehaus-rock[data-state="look"] .eye-l,
+.storehaus-rock[data-state="look"] .eye-r {
+  animation: storehaus-rock-blink 4s ease-in-out infinite;
+}
+.storehaus-rock[data-state="stretch"] .rock-all {
+  transform-origin: 50% 100%;
+  animation: storehaus-rock-stretch 2.4s ease-in-out infinite;
+}
+
+/* Mouse-flee state machine — handled JS-side. Static transforms only here
+ * (no @keyframes) so the dash impulse + JS-driven tilt is what reads as
+ * the panic motion, not a CSS animation. */
+.storehaus-rock[data-state="startled"] .rock-all { transform: scale(1.04, 0.96); }
+.storehaus-rock[data-state="startled"] .eye-l,
+.storehaus-rock[data-state="startled"] .eye-r {
+  transform: scale(1.45);
+  animation: none;
+}
+.storehaus-rock[data-state="fleeing"] .rock-all { transform: scale(1.08, 0.9); }
+.storehaus-rock[data-state="fleeing"] .eye-l,
+.storehaus-rock[data-state="fleeing"] .eye-r {
+  transform: scale(1.25);
+  animation: none;
+}
+
+/* Pulse ring for the active feed marker. Halo amplitude bumped 2026-05-10
+ * after smoke review — the original 4-7px shadow with 0.08 alpha was
+ * indistinguishable from the static `done` marker in still screenshots
+ * and during slow updates. New range 4-12px with 0.18 alpha is clearly
+ * breathing without becoming distracting. */
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(55, 53, 47, 0.18); }
+  50%      { box-shadow: 0 0 0 12px rgba(55, 53, 47, 0); }
+}
+
+/* IDE terminal cursor blink (SandboxIdeResult). */
+@keyframes ide-blink {
+  50% { opacity: 0; }
+}
+
+/* Sweeping shimmer used by ImageryActiveResult for active slot tiles.
+ * Distinct name from the legacy `shimmer` keyframe at line ~717 (which
+ * oscillates background-position 0→100%→0); this is a one-shot sweep.
+ * Renamed to keep both keyframes addressable without last-wins surprise. */
+@keyframes imagery-shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* Channel Talk messenger — anchor next to the seller Sidebar in dashboard zone.
+ * Channel Talk inlines `bottom: 90px !important; right: 24px !important` on
+ * #ch-plugin-script. Only `left` is overridable from CSS — fixed width (430px)
+ * makes the box extend rightward and the inline `right` is ignored, landing
+ * bottom-left adjacent to the chat-support row. Body attribute toggled by
+ * ChannelTalkProvider; collapsed-sidebar branch uses :has() on the aside. */
+body[data-channel-talk-zone="sidebar"] #ch-plugin-script {
+  left: 270px !important;
+}
+body[data-channel-talk-zone="sidebar"]:has(aside[data-slot="sidebar"][data-collapsed="true"]) #ch-plugin-script {
+  left: 66px !important;
+}
+/* Launcher hide lives inside the shadow root (declarative
+ * `<template shadowrootmode="open">` under #ch-plugin-entry), so the rule is
+ * injected from ChannelTalkProvider — parent CSS can't pierce that boundary. */
+
+/* ScrollReveal: when a consumer passes `disableOnMobile`, force the wrapper
+ * visible below md. Framer Motion writes inline opacity + transform; the
+ * only spec-safe way to short-circuit without SSR markup divergence is
+ * !important on both. */
+@media (max-width: 47.99rem) {
+  .scroll-reveal-static-on-mobile {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

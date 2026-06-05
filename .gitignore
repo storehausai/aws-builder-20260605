@@ -1,0 +1,26 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+.next/
+dist/
+out/
+.turbo/
+
+# env — secrets stay local; only .env.example is tracked
+.env
+.env.*
+!.env.example
+
+# claude local settings (keep .mcp.json tracked, ignore local overrides)
+.claude/settings.local.json
+
+# misc
+*.log
+.DS_Store
+coverage/
+
+# local outreach round-trip capture + IG session
+.outreach/
+.ig-session.json

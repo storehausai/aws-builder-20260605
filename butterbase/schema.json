@@ -1,0 +1,379 @@
+{
+  "tables": {
+    "data_provider": {
+      "columns": {
+        "id": { "type": "text", "primaryKey": true },
+        "name": { "type": "text", "nullable": false },
+        "kind": { "type": "text", "nullable": false },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      }
+    },
+
+    "stores": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "owner_id": { "type": "uuid", "nullable": false },
+        "name": { "type": "text", "nullable": false },
+        "slug": { "type": "text", "nullable": false, "unique": true },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      }
+    },
+
+    "store_members": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "store_id": { "type": "uuid", "nullable": false, "references": { "table": "stores", "column": "id" } },
+        "user_id": { "type": "uuid", "nullable": false },
+        "role": { "type": "text", "nullable": false, "default": "'member'" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_store_members_store_user": { "columns": ["store_id", "user_id"], "unique": true }
+      }
+    },
+
+    "requests": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "store_id": { "type": "uuid", "nullable": false, "references": { "table": "stores", "column": "id" } },
+        "created_by": { "type": "uuid" },
+        "intent": { "type": "text", "nullable": false },
+        "status": { "type": "text", "nullable": false, "default": "'pending'" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      }
+    },
+
+    "panels": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "store_id": { "type": "uuid", "nullable": false, "references": { "table": "stores", "column": "id" } },
+        "request_id": { "type": "uuid", "references": { "table": "requests", "column": "id" } },
+        "title": { "type": "text" },
+        "format": { "type": "text", "nullable": false, "default": "'react'" },
+        "source": { "type": "text" },
+        "spec": { "type": "jsonb" },
+        "status": { "type": "text", "nullable": false, "default": "'draft'" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "idx_panels_store_created": { "columns": ["store_id", "created_at"] }
+      }
+    },
+
+    "social_fetch_raw": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "provider_id": { "type": "text", "nullable": false, "references": { "table": "data_provider", "column": "id" } },
+        "capability": { "type": "text", "nullable": false },
+        "platform": { "type": "text" },
+        "platform_account_id": { "type": "text" },
+        "handle": { "type": "text" },
+        "endpoint": { "type": "text" },
+        "payload": { "type": "jsonb", "nullable": false },
+        "fetched_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "idx_social_fetch_raw_acct": { "columns": ["platform", "platform_account_id", "fetched_at"] }
+      }
+    },
+
+    "social_account": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "platform": { "type": "text", "nullable": false },
+        "platform_account_id": { "type": "text", "nullable": false },
+        "handle": { "type": "text", "nullable": false },
+        "display_name": { "type": "text" },
+        "avatar_url": { "type": "text" },
+        "verified": { "type": "boolean" },
+        "followers_count": { "type": "bigint" },
+        "following_count": { "type": "bigint" },
+        "posts_count": { "type": "bigint" },
+        "first_seen_at": { "type": "timestamptz", "nullable": false, "default": "now()" },
+        "last_fetched_at": { "type": "timestamptz" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_social_account_platform_acct": { "columns": ["platform", "platform_account_id"], "unique": true }
+      }
+    },
+
+    "social_account_post": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "account_id": { "type": "uuid", "nullable": false, "references": { "table": "social_account", "column": "id" } },
+        "external_id": { "type": "text", "nullable": false },
+        "url": { "type": "text" },
+        "posted_at": { "type": "timestamptz" },
+        "media_type": { "type": "text" },
+        "caption": { "type": "text" },
+        "cover_url": { "type": "text" },
+        "hashtags": { "type": "text[]", "nullable": false, "default": "'{}'" },
+        "mentions": { "type": "text[]", "nullable": false, "default": "'{}'" },
+        "first_seen_at": { "type": "timestamptz", "nullable": false, "default": "now()" },
+        "last_seen_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_social_account_post_acct_ext": { "columns": ["account_id", "external_id"], "unique": true },
+        "idx_social_account_post_acct_posted": { "columns": ["account_id", "posted_at"] }
+      }
+    },
+
+    "social_account_snapshot": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "account_id": { "type": "uuid", "nullable": false, "references": { "table": "social_account", "column": "id" } },
+        "snapshot_date": { "type": "date", "nullable": false },
+        "follower_count": { "type": "bigint" },
+        "following_count": { "type": "bigint" },
+        "post_count": { "type": "bigint" },
+        "provider_id": { "type": "text", "nullable": false, "references": { "table": "data_provider", "column": "id" } },
+        "polled_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_social_account_snapshot": { "columns": ["account_id", "snapshot_date"], "unique": true }
+      }
+    },
+
+    "social_post_snapshot": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "post_id": { "type": "uuid", "nullable": false, "references": { "table": "social_account_post", "column": "id" } },
+        "snapshot_date": { "type": "date", "nullable": false },
+        "view_count": { "type": "bigint" },
+        "like_count": { "type": "bigint" },
+        "comment_count": { "type": "bigint" },
+        "share_count": { "type": "bigint" },
+        "provider_id": { "type": "text", "nullable": false, "references": { "table": "data_provider", "column": "id" } },
+        "polled_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_social_post_snapshot": { "columns": ["post_id", "snapshot_date"], "unique": true }
+      }
+    },
+
+    "brand": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "name": { "type": "text", "nullable": false },
+        "slug": { "type": "text", "nullable": false, "unique": true },
+        "domain": { "type": "text" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      }
+    },
+
+    "commerce_fetch_raw": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "provider_id": { "type": "text", "nullable": false, "references": { "table": "data_provider", "column": "id" } },
+        "capability": { "type": "text", "nullable": false },
+        "marketplace": { "type": "text" },
+        "external_id": { "type": "text" },
+        "endpoint": { "type": "text" },
+        "payload": { "type": "jsonb", "nullable": false },
+        "fetched_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "idx_commerce_fetch_raw_ext": { "columns": ["marketplace", "external_id", "fetched_at"] }
+      }
+    },
+
+    "commerce_product": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "marketplace": { "type": "text", "nullable": false },
+        "external_id": { "type": "text", "nullable": false },
+        "brand_id": { "type": "uuid", "references": { "table": "brand", "column": "id" } },
+        "title": { "type": "text" },
+        "image_url": { "type": "text" },
+        "category": { "type": "text" },
+        "first_seen_at": { "type": "timestamptz", "nullable": false, "default": "now()" },
+        "last_fetched_at": { "type": "timestamptz" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_commerce_product_marketplace_ext": { "columns": ["marketplace", "external_id"], "unique": true },
+        "idx_commerce_product_brand": { "columns": ["brand_id"] }
+      }
+    },
+
+    "commerce_product_snapshot": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "product_id": { "type": "uuid", "nullable": false, "references": { "table": "commerce_product", "column": "id" } },
+        "snapshot_date": { "type": "date", "nullable": false },
+        "rank": { "type": "integer" },
+        "price": { "type": "numeric" },
+        "rating": { "type": "numeric" },
+        "review_count": { "type": "bigint" },
+        "provider_id": { "type": "text", "nullable": false, "references": { "table": "data_provider", "column": "id" } },
+        "polled_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_commerce_product_snapshot": { "columns": ["product_id", "snapshot_date"], "unique": true }
+      }
+    },
+
+    "brand_account": {
+      "columns": {
+        "brand_id": { "type": "uuid", "nullable": false, "references": { "table": "brand", "column": "id" } },
+        "account_id": { "type": "uuid", "nullable": false, "references": { "table": "social_account", "column": "id" } },
+        "role": { "type": "text", "nullable": false, "default": "'official'" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_brand_account_pk": { "columns": ["brand_id", "account_id"], "unique": true }
+      }
+    },
+
+    "brand_mention": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "brand_id": { "type": "uuid", "nullable": false, "references": { "table": "brand", "column": "id" } },
+        "platform": { "type": "text", "nullable": false },
+        "creator_handle": { "type": "text", "nullable": false },
+        "creator_account_id": { "type": "uuid", "references": { "table": "social_account", "column": "id" } },
+        "post_id": { "type": "uuid", "references": { "table": "social_account_post", "column": "id" } },
+        "external_url": { "type": "text" },
+        "external_id": { "type": "text" },
+        "posted_at": { "type": "timestamptz" },
+        "views": { "type": "bigint" },
+        "likes": { "type": "bigint" },
+        "comments": { "type": "bigint" },
+        "creator_followers": { "type": "bigint" },
+        "provider_id": { "type": "text", "nullable": false, "references": { "table": "data_provider", "column": "id" } },
+        "status": { "type": "text", "nullable": false, "default": "'detected'" },
+        "cover_url": { "type": "text" },
+        "caption": { "type": "text" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_brand_mention_brand_platform_ext": { "columns": ["brand_id", "platform", "external_id"], "unique": true },
+        "idx_brand_mention_brand_posted": { "columns": ["brand_id", "posted_at"] },
+        "idx_brand_mention_creator_account": { "columns": ["creator_account_id"] }
+      }
+    },
+
+    "tracked_brand": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "store_id": { "type": "uuid", "nullable": false, "references": { "table": "stores", "column": "id" } },
+        "brand_id": { "type": "uuid", "nullable": false, "references": { "table": "brand", "column": "id" } },
+        "is_self": { "type": "boolean", "nullable": false, "default": "false" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_tracked_brand_store_brand": { "columns": ["store_id", "brand_id"], "unique": true },
+        "idx_tracked_brand_store": { "columns": ["store_id"] }
+      }
+    },
+
+    "detected_event": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "product_id": { "type": "uuid", "nullable": false, "references": { "table": "commerce_product", "column": "id" } },
+        "event_date": { "type": "date", "nullable": false },
+        "kind": { "type": "text", "nullable": false, "default": "'sales_spike'" },
+        "rank_from": { "type": "integer" },
+        "rank_to": { "type": "integer" },
+        "magnitude": { "type": "numeric" },
+        "method": { "type": "text", "nullable": false },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "uq_detected_event_product_date_method": { "columns": ["product_id", "event_date", "method"], "unique": true },
+        "idx_detected_event_product_date": { "columns": ["product_id", "event_date"] }
+      }
+    },
+
+    "attribution": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "event_id": { "type": "uuid", "nullable": false, "references": { "table": "detected_event", "column": "id" } },
+        "brand_id": { "type": "uuid", "references": { "table": "brand", "column": "id" } },
+        "account_id": { "type": "uuid", "references": { "table": "social_account", "column": "id" } },
+        "post_id": { "type": "uuid", "references": { "table": "social_account_post", "column": "id" } },
+        "mention_id": { "type": "uuid", "references": { "table": "brand_mention", "column": "id" } },
+        "confidence": { "type": "numeric", "nullable": false },
+        "method": { "type": "text", "nullable": false },
+        "evidence": { "type": "jsonb", "nullable": false, "default": "'{}'" },
+        "created_at": { "type": "timestamptz", "nullable": false, "default": "now()" }
+      },
+      "indexes": {
+        "idx_attribution_event": { "columns": ["event_id"] },
+        "idx_attribution_account": { "columns": ["account_id"] }
+      }
+    },
+
+    "brand_profile": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "store_id": { "type": "uuid", "nullable": false, "references": { "table": "stores", "column": "id" } },
+        "homepage_url": { "type": "text", "nullable": false },
+        "name": { "type": "text" },
+        "category": { "type": "text" },
+        "summary": { "type": "text" },
+        "seed_asins": { "type": "jsonb" },
+        "competitors": { "type": "jsonb" },
+        "created_at": { "type": "timestamptz", "default": "now()" }
+      },
+      "indexes": {
+        "idx_brand_profile_store": { "columns": ["store_id"] }
+      }
+    },
+
+    "influencer_candidate": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "store_id": { "type": "uuid", "nullable": false, "references": { "table": "stores", "column": "id" } },
+        "platform": { "type": "text", "default": "'instagram'" },
+        "handle": { "type": "text", "nullable": false },
+        "platform_pk": { "type": "text" },
+        "followers": { "type": "int8" },
+        "score": { "type": "float8" },
+        "rationale": { "type": "text" },
+        "status": { "type": "text", "default": "'suggested'" },
+        "created_at": { "type": "timestamptz", "default": "now()" }
+      },
+      "indexes": {
+        "idx_influencer_candidate_store": { "columns": ["store_id"] }
+      }
+    },
+
+    "outreach_thread": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "candidate_id": { "type": "uuid", "nullable": false, "references": { "table": "influencer_candidate", "column": "id" } },
+        "store_id": { "type": "uuid", "nullable": false, "references": { "table": "stores", "column": "id" } },
+        "ig_thread_id": { "type": "text" },
+        "state": { "type": "text", "default": "'sent'" },
+        "marketer_imsg": { "type": "text" },
+        "created_at": { "type": "timestamptz", "default": "now()" }
+      },
+      "indexes": {
+        "idx_outreach_thread_candidate": { "columns": ["candidate_id"] },
+        "idx_outreach_thread_store": { "columns": ["store_id"] }
+      }
+    },
+
+    "outreach_message": {
+      "columns": {
+        "id": { "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()" },
+        "thread_id": { "type": "uuid", "nullable": false, "references": { "table": "outreach_thread", "column": "id" } },
+        "direction": { "type": "text", "nullable": false },
+        "channel": { "type": "text", "nullable": false },
+        "body": { "type": "text" },
+        "sent_at": { "type": "timestamptz", "default": "now()" }
+      },
+      "indexes": {
+        "idx_outreach_message_thread": { "columns": ["thread_id"] }
+      }
+    }
+  }
+}

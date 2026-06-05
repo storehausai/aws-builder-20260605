@@ -1,0 +1,215 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Sparkles } from "lucide-react";
+import { ChatInput, type ChatInputHandle } from "./ChatInput";
+import { SuggestionChips } from "./SuggestionChips";
+import { StepTimeline } from "./StepTimeline";
+import { chatStore, type StoredMessage } from "@/lib/chat-store";
+import { discover, getReplies, type DiscoveryResult } from "@/lib/api";
+import type { PanelArtifact } from "@/components/chat/PanelHost";
+
+const STEP_REVEAL_MS = 600;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+export function ChatView({
+  chatId,
+  storeId,
+  brand,
+  seed,
+  onPanelArtifact,
+}: {
+  chatId: string;
+  storeId: string;
+  brand?: string;
+  seed?: string | null;
+  onPanelArtifact: (a: PanelArtifact | null) => void;
+}) {
+  const [messages, setMessages] = useState<StoredMessage[]>(() => chatStore.messages(chatId));
+  const [liveSteps, setLiveSteps] = useState<string[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<ChatInputHandle>(null);
+  const seededRef = useRef(false);
+  const lastReplyAt = useRef<string>(new Date().toISOString());
+
+  const persist = useCallback(
+    (msgs: StoredMessage[]) => {
+      setMessages(msgs);
+      chatStore.setMessages(chatId, msgs);
+    },
+    [chatId],
+  );
+
+  // Re-lift this chat's panel (last assistant turn with influencers) on open.
+  useEffect(() => {
+    const msgs = chatStore.messages(chatId);
+    setMessages(msgs);
+    const lastWithCreators = [...msgs].reverse().find((m) => m.influencers?.length);
+    onPanelArtifact(
+      lastWithCreators
+        ? { viz: "creators", title: "Suggested creators", brand, storeId, influencers: lastWithCreators.influencers! }
+        : null,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, liveSteps]);
+
+  const send = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || loading) return;
+
+      const now = new Date().toISOString();
+      const userMsg: StoredMessage = { id: `u_${now}`, role: "user", content: trimmed, createdAt: now };
+      const next = [...chatStore.messages(chatId), userMsg];
+      persist(next);
+      chatStore.touch(chatId, trimmed.slice(0, 48));
+      setLoading(true);
+      setLiveSteps([]);
+
+      let result: DiscoveryResult;
+      try {
+        result = await discover(trimmed, storeId);
+      } catch (e) {
+        setLiveSteps(null);
+        setLoading(false);
+        persist([
+          ...next,
+          { id: `a_${Date.now()}`, role: "assistant", content: `Sorry — discovery hit an error: ${(e as Error).message}`, createdAt: new Date().toISOString() },
+        ]);
+        return;
+      }
+
+      // Reveal the agent's work one step at a time (the "working while talking" feel).
+      for (let i = 0; i < result.steps.length; i++) {
+        setLiveSteps(result.steps.slice(0, i + 1));
+        await sleep(STEP_REVEAL_MS);
+      }
+
+      const assistant: StoredMessage = {
+        id: `a_${Date.now()}`,
+        role: "assistant",
+        content: result.reply,
+        steps: result.steps,
+        influencers: result.influencers,
+        createdAt: new Date().toISOString(),
+      };
+      persist([...next, assistant]);
+      setLiveSteps(null);
+      setLoading(false);
+
+      onPanelArtifact(
+        result.influencers.length
+          ? { viz: "creators", title: "Suggested creators", brand, storeId, influencers: result.influencers }
+          : null,
+      );
+    },
+    [chatId, storeId, brand, loading, persist, onPanelArtifact],
+  );
+
+  // Auto-send the seeded prompt (from a dashboard example chip) once.
+  useEffect(() => {
+    if (seed && !seededRef.current && chatStore.messages(chatId).length === 0) {
+      seededRef.current = true;
+      void send(seed);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed, chatId]);
+
+  // Poll for influencer replies and surface them in the chat.
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    const tick = async () => {
+      const replies = await getReplies(storeId, lastReplyAt.current);
+      if (!alive || replies.length === 0) return;
+      lastReplyAt.current = new Date().toISOString();
+      const cur = chatStore.messages(chatId);
+      const lines = replies.map((r) => ({
+        id: `r_${r.id}`,
+        role: "assistant" as const,
+        content: `📩 **@${r.handle}** replied:\n\n> ${r.body}`,
+        createdAt: r.sentAt,
+      }));
+      persist([...cur, ...lines]);
+    };
+    const h = setInterval(tick, 4000);
+    return () => {
+      alive = false;
+      clearInterval(h);
+    };
+  }, [storeId, chatId, persist]);
+
+  const empty = messages.length === 0 && !loading;
+
+  return (
+    <div className="flex h-full flex-col bg-background">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-2xl px-5 py-8">
+          {empty ? (
+            <div className="flex flex-col items-center justify-center pt-16 text-center">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-surface-raised text-foreground">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <h2 className="text-lg font-semibold text-foreground">How can I help with {brand ?? "your brand"}?</h2>
+              <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+                Ask me to find creators who move your market, or pick one to start.
+              </p>
+              <div className="mt-6 w-full">
+                <SuggestionChips onAction={(p) => void send(p)} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-5">
+              {messages.map((m) => (
+                <Message key={m.id} m={m} />
+              ))}
+              {loading && liveSteps != null && liveSteps.length > 0 && <StepTimeline steps={liveSteps} />}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-border bg-background px-5 py-3">
+        <div className="mx-auto w-full max-w-2xl">
+          <ChatInput
+            ref={inputRef}
+            onSend={(t) => void send(t)}
+            isLoading={loading}
+            placeholder={`Message pebble about ${brand ?? "your brand"}…`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Message({ m }: { m: StoredMessage }) {
+  if (m.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-foreground px-4 py-2.5 text-sm text-background">
+          {m.content}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2.5">
+      {m.steps && m.steps.length > 0 && <StepTimeline steps={m.steps} done />}
+      <div className="prose prose-sm max-w-none text-foreground prose-p:my-1.5 prose-strong:text-foreground">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+      </div>
+      {m.influencers && m.influencers.length > 0 && (
+        <p className="text-xs text-muted-foreground">↳ {m.influencers.length} creators in the panel →</p>
+      )}
+    </div>
+  );
+}
+

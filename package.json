@@ -1,0 +1,22 @@
+{
+  "name": "pebble-hackathon",
+  "private": true,
+  "version": "0.0.0",
+  "description": "pebble (hackathon edition) — find influencers who move the market, then DM them. Built on RocketRide + Butterbase + XTrace + Photon.",
+  "packageManager": "pnpm@10.28.1",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "test": "pnpm --filter @pebble/tests test",
+    "ig:send-test": "pnpm --filter @pebble/outreach send-test",
+    "ig:webhook": "pnpm --filter @pebble/outreach webhook"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3",
+    "tsx": "^4.19.2",
+    "@types/node": "^22.10.7"
+  }
+}

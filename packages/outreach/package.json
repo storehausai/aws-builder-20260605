@@ -1,0 +1,23 @@
+{
+  "name": "@pebble/outreach",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "send-test": "tsx scripts/send-test.ts",
+    "webhook": "tsx scripts/webhook-server.ts",
+    "ig:login": "tsx scripts/ig-login.ts",
+    "ig:poll": "tsx scripts/poll-inbound.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "instagram-private-api": "^1.46.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

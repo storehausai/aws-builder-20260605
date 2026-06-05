@@ -1,0 +1,95 @@
+{
+  "pipeline": {
+    "description": "pebble discovery — steps 1-4: brand URL -> ingest -> find creators -> score market-movers -> ranked shortlist. The demo's spine; runs as a chat source against the agent_rocketride orchestrator.",
+    "version": 1,
+    "source": "chat_1",
+    "project_id": "pebble-discovery",
+    "components": [
+      {
+        "id": "chat_1",
+        "provider": "chat",
+        "name": "Marketer chat",
+        "config": { "mode": "Source" }
+      },
+      {
+        "id": "agent",
+        "provider": "agent_rocketride",
+        "name": "Pebble orchestrator",
+        "config": {
+          "max_waves": 14,
+          "instructions": [
+            "You are Pebble, an influencer-marketing copilot. Given a brand homepage URL, (1) ingest the brand,",
+            "(2) find candidate creators in its category/among competitor mentions, (3) score them by proven",
+            "market impact, (4) suggest a ranked shortlist with a one-line rationale each. Narrate each step so",
+            "the user sees the work. Be honest: correlation != causation."
+          ]
+        },
+        "input": [{ "lane": "questions", "from": "chat_1" }]
+      },
+      {
+        "id": "llm",
+        "provider": "llm_openai",
+        "name": "Butterbase gateway (Claude Sonnet 4.6)",
+        "config": {
+          "baseURL": "https://api.butterbase.ai/v1",
+          "model": "anthropic/claude-sonnet-4.6",
+          "apikey": "${ROCKETRIDE_BUTTERBASE_KEY}"
+        },
+        "control": [{ "classType": "llm", "from": "agent" }]
+      },
+      {
+        "id": "mem",
+        "provider": "memory_xtrace",
+        "name": "XTrace brand-brief + outcomes memory",
+        "config": {
+          "apiKey": "${XTRACE_API_KEY}",
+          "orgId": "${XTRACE_ORG_ID}"
+        },
+        "control": [{ "classType": "memory", "from": "agent" }]
+      },
+      {
+        "id": "t_ingest",
+        "provider": "tool_http_request",
+        "name": "ingest-brand",
+        "config": {
+          "url": "${WEB_URL}/api/tools/ingest-brand",
+          "method": "POST",
+          "description": "Extract a brand brief (name, category, summary, seed ASINs, competitors) from a homepage URL and persist it.",
+          "headers": { "content-type": "application/json" }
+        },
+        "control": [{ "classType": "tool", "from": "agent" }]
+      },
+      {
+        "id": "t_find",
+        "provider": "tool_http_request",
+        "name": "find-creators",
+        "config": {
+          "url": "${ENGINE_URL}/market-movers",
+          "method": "POST",
+          "description": "Find candidate creators for the brand's category / competitor mentions and rank them by proven market impact.",
+          "headers": { "content-type": "application/json" }
+        },
+        "control": [{ "classType": "tool", "from": "agent" }]
+      },
+      {
+        "id": "t_panel",
+        "provider": "tool_http_request",
+        "name": "generate-panel",
+        "config": {
+          "url": "${WEB_URL}/api/generate-panel",
+          "method": "POST",
+          "description": "Render the ranked creator shortlist into a panel for the web UI.",
+          "headers": { "content-type": "application/json" }
+        },
+        "control": [{ "classType": "tool", "from": "agent" }]
+      },
+      {
+        "id": "out",
+        "provider": "response_answers",
+        "name": "Answer",
+        "config": { "laneName": "answers" },
+        "input": [{ "lane": "answers", "from": "agent" }]
+      }
+    ]
+  }
+}

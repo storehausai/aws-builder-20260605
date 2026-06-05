@@ -1,0 +1,59 @@
+{
+  "pipeline": {
+    "description": "pebble ingest — data in: a provider webhook arrives, we fetch the raw record, normalize it through the matching @pebble/providers adapter, then write the canonical row to Butterbase. One run per (capability, ref).",
+    "version": 1,
+    "source": "hook_1",
+    "project_id": "pebble-ingest",
+    "components": [
+      {
+        "id": "hook_1",
+        "provider": "webhook",
+        "name": "Provider webhook",
+        "config": { "mode": "Source" }
+      },
+      {
+        "id": "t_fetch",
+        "provider": "tool_http_request",
+        "name": "fetch",
+        "config": {
+          "url": "${ENGINE_URL}/fetch",
+          "method": "POST",
+          "description": "Fetch the raw provider record (Keepa / Apify / ScrapeCreators) for the (capability, ref) in the webhook payload.",
+          "headers": { "content-type": "application/json" }
+        },
+        "input": [{ "lane": "data", "from": "hook_1" }]
+      },
+      {
+        "id": "t_normalize",
+        "provider": "tool_http_request",
+        "name": "normalize",
+        "config": {
+          "url": "${ENGINE_URL}/normalize",
+          "method": "POST",
+          "description": "Run the matching @pebble/providers adapter.normalize on the raw record to produce canonical rows.",
+          "headers": { "content-type": "application/json" }
+        },
+        "input": [{ "lane": "data", "from": "t_fetch" }]
+      },
+      {
+        "id": "t_bb_write",
+        "provider": "tool_http_request",
+        "name": "bb_write",
+        "config": {
+          "url": "${WEB_URL}/api/tools/bb-write",
+          "method": "POST",
+          "description": "Upsert the normalized canonical rows into Butterbase (open-provenance provider_id preserved).",
+          "headers": { "content-type": "application/json" }
+        },
+        "input": [{ "lane": "data", "from": "t_normalize" }]
+      },
+      {
+        "id": "out",
+        "provider": "response_answers",
+        "name": "Result",
+        "config": { "laneName": "answers" },
+        "input": [{ "lane": "answers", "from": "t_bb_write" }]
+      }
+    ]
+  }
+}

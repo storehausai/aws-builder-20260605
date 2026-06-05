@@ -190,7 +190,7 @@ export function ChatView({
         </div>
       </div>
 
-      <div className="border-t border-border bg-background px-5 py-3">
+      <div className="border-t border-border bg-background">
         <div className="mx-auto w-full max-w-2xl">
           <ChatInput
             ref={inputRef}

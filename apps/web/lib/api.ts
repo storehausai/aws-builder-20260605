@@ -13,6 +13,20 @@ export interface InfluencerSuggestion {
   rationale: string;
 }
 
+/** A persisted influencer candidate (a row of `influencer_candidate`). */
+export interface StoredInfluencer {
+  id: string;
+  platform: "instagram" | "tiktok" | "youtube" | string;
+  handle: string;
+  followers: number | null;
+  /** cascade / market-mover composite, 0..1. */
+  score: number | null;
+  rationale: string;
+  /** suggested | contacted | replied | … */
+  status: string;
+  createdAt: string;
+}
+
 export interface DiscoveryResult {
   steps: string[];
   reply: string;
@@ -95,6 +109,18 @@ export function discover(
   storeId?: string,
 ): Promise<DiscoveryResult> {
   return postJson<DiscoveryResult>("/api/discover", { text, storeId });
+}
+
+export async function getInfluencers(
+  storeId: string,
+): Promise<StoredInfluencer[]> {
+  const res = await fetch(
+    `/api/influencers?storeId=${encodeURIComponent(storeId)}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as { influencers?: StoredInfluencer[] };
+  return body.influencers ?? [];
 }
 
 export function outreach(input: {

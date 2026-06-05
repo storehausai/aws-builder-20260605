@@ -7,6 +7,7 @@ import {
 } from "@pebble/bb";
 import type { InfluencerSuggestion } from "@pebble/pipelines";
 import type { BrandOnboarding } from "@pebble/providers";
+import type { StoredInfluencer } from "@/lib/api";
 
 /**
  * Shared Butterbase persistence helpers for the brand / onboarding /
@@ -215,6 +216,45 @@ export async function persistCandidates(
   }
 }
 
+/**
+ * List the persisted influencer candidates for a store, ordered best-fit first
+ * (highest score, then most recent). Best-effort: returns [] on any failure or
+ * when Butterbase isn't configured. Powers the Influencers sidebar tab.
+ */
+export async function listCandidates(
+  storeId: string,
+): Promise<StoredInfluencer[]> {
+  const bb = tryCreateBb();
+  if (!bb) return [];
+  try {
+    const rows = (unwrapMaybe(
+      await bb
+        .from("influencer_candidate")
+        .select(
+          "id, platform, handle, followers, score, rationale, status, created_at",
+        )
+        .eq("store_id", storeId)
+        .order("created_at", { ascending: false }),
+    ) ?? []) as RawCandidate[];
+
+    return rows
+      .map((r) => ({
+        id: r.id,
+        platform: r.platform ?? "instagram",
+        handle: (r.handle ?? "").replace(/^@/, ""),
+        followers: r.followers ?? null,
+        score: r.score ?? null,
+        rationale: r.rationale ?? "",
+        status: r.status ?? "suggested",
+        createdAt: r.created_at ?? "",
+      }))
+      .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  } catch (err) {
+    console.warn("[brand.server] listCandidates failed:", err);
+    return [];
+  }
+}
+
 /** Resolve a candidate id by (store_id, handle), or null when absent. */
 export async function findCandidateId(
   bb: Bb,
@@ -291,6 +331,17 @@ export async function recordOutreach(
 }
 
 /* ------------------------------- helpers ------------------------------- */
+
+interface RawCandidate {
+  id: string;
+  platform?: string | null;
+  handle?: string | null;
+  followers?: number | null;
+  score?: number | null;
+  rationale?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+}
 
 interface RawBrandProfile {
   homepage_url?: string | null;

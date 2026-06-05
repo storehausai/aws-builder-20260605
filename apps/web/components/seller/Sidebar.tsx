@@ -20,6 +20,7 @@ import {
   Archive,
   User,
   LayoutDashboard,
+  Users,
 } from "lucide-react";
 import { cn, isMac } from "@/lib/utils";
 import { useChats, chatStore, type Chat } from "@/lib/chat-store";
@@ -187,11 +188,12 @@ function ChatRow({ chat, ctx }: { chat: Chat; ctx: ChatItemCtx }) {
 
 export interface SidebarProps {
   storeId: string;
-  activeItem: "chat" | "dashboard";
+  activeItem: "chat" | "dashboard" | "influencers";
   onNewChat: () => void;
   onOpenSearch?: () => void;
   onNavigateToTask?: (taskId: string) => void;
   onNavigateToDashboard?: () => void;
+  onNavigateToInfluencers?: () => void;
   onUpdateChat?: (
     chatId: string,
     data: { title?: string; archive?: boolean; unarchive?: boolean },
@@ -208,6 +210,7 @@ function SidebarBody({
   onOpenSearch,
   onNavigateToTask,
   onNavigateToDashboard,
+  onNavigateToInfluencers,
   onUpdateChat,
   activeTaskId,
   userName,
@@ -315,6 +318,14 @@ function SidebarBody({
               onClick={() => onNavigateToDashboard?.()}
             >
               Dashboard
+            </SidebarItem>
+
+            <SidebarItem
+              icon={Users}
+              active={activeItem === "influencers"}
+              onClick={() => onNavigateToInfluencers?.()}
+            >
+              Influencers
             </SidebarItem>
 
             <SidebarItem

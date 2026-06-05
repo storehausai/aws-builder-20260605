@@ -1,26 +1,22 @@
 "use client";
 
+import { useMemo } from "react";
 import { Instagram, Music2, Youtube, AtSign } from "lucide-react";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import {
   NOTION_TEXT,
   NOTION_TEXT_MUTED,
-  NOTION_TEXT_SUBTLE,
-  NOTION_BORDER,
   CHART_PLATFORM_PALETTE,
 } from "@/lib/colors";
 import { formatFollowers } from "@/lib/utils";
 import type { StoredInfluencer } from "@/lib/api";
 
 /**
- * A Notion-style database table for the store's influencer candidates. Mirrors
- * Notion's table view: a bordered grid with a quiet header row, thin column
- * dividers, per-row hover, and inline "property" chips (platform select,
- * status select, score). Styled with the shared Notion tokens (lib/colors).
+ * The store's influencer candidates rendered through storehaus's Notion-style
+ * DataTable (vendored verbatim into components/ui/data-table). This module only
+ * supplies the influencer column definitions + cell renderers; all table
+ * behaviour (sort, search, column resize/reorder, hover) is the storehaus code.
  */
-
-interface InfluencerTableProps {
-  influencers: StoredInfluencer[];
-}
 
 function platformIcon(platform: string) {
   if (platform === "tiktok") return Music2;
@@ -64,167 +60,131 @@ function statusColor(status: string): string {
   return STATUS_COLORS[status.toLowerCase()] ?? "#9b9a97";
 }
 
-/** Cell wrapper with the Notion thin column divider + padding. */
-function Cell({
-  children,
-  className = "",
-  last = false,
+export function InfluencerTable({
+  influencers,
 }: {
-  children: React.ReactNode;
-  className?: string;
-  last?: boolean;
+  influencers: StoredInfluencer[];
 }) {
-  return (
-    <td
-      className={`px-3 py-2 align-middle ${className}`}
-      style={{ borderRight: last ? undefined : `1px solid ${NOTION_BORDER}` }}
-    >
-      {children}
-    </td>
-  );
-}
-
-function HeaderCell({
-  children,
-  last = false,
-  className = "",
-}: {
-  children: React.ReactNode;
-  last?: boolean;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-3 py-2 text-left text-xs font-medium ${className}`}
-      style={{
-        color: NOTION_TEXT_SUBTLE,
-        borderRight: last ? undefined : `1px solid ${NOTION_BORDER}`,
-      }}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Row({ inf }: { inf: StoredInfluencer }) {
-  const Icon = platformIcon(inf.platform);
-  const pColor = platformColor(inf.platform);
-  const scorePct =
-    typeof inf.score === "number" ? Math.round(inf.score * 100) : null;
-
-  return (
-    <tr
-      className="transition-colors hover:bg-[#f0efed]"
-      style={{ borderTop: `1px solid ${NOTION_BORDER}` }}
-    >
-      {/* Influencer (primary "Name" column) */}
-      <Cell>
-        <div className="flex items-center gap-2.5">
+  const columns = useMemo<DataTableColumn<StoredInfluencer>[]>(
+    () => [
+      {
+        key: "handle",
+        header: "Influencer",
+        flex: true,
+        minWidth: 200,
+        sortable: true,
+        getValue: (r) => r.handle,
+        render: (_v, r) => {
+          const Icon = platformIcon(r.platform);
+          const color = platformColor(r.platform);
+          return (
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span
+                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
+                style={{ backgroundColor: `${color}1a`, color }}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </span>
+              <span
+                className="truncate text-sm font-medium"
+                style={{ color: NOTION_TEXT }}
+              >
+                @{r.handle}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: "platform",
+        header: "Platform",
+        width: 130,
+        sortable: true,
+        getValue: (r) => r.platform,
+        render: (_v, r) => (
+          <SelectTag label={r.platform} color={platformColor(r.platform)} />
+        ),
+      },
+      {
+        key: "followers",
+        header: "Followers",
+        width: 130,
+        align: "right",
+        sortable: true,
+        getValue: (r) => r.followers ?? -1,
+        render: (_v, r) => (
           <span
-            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
-            style={{ backgroundColor: `${pColor}1a`, color: pColor }}
+            className="text-sm tabular-nums"
+            style={{
+              color: r.followers != null ? NOTION_TEXT : NOTION_TEXT_MUTED,
+            }}
           >
-            <Icon className="h-3.5 w-3.5" />
+            {r.followers != null ? formatFollowers(r.followers) : "—"}
           </span>
+        ),
+      },
+      {
+        key: "score",
+        header: "Fit",
+        width: 90,
+        align: "right",
+        sortable: true,
+        getValue: (r) => r.score ?? -1,
+        render: (_v, r) => {
+          const pct =
+            typeof r.score === "number" ? Math.round(r.score * 100) : null;
+          if (pct == null)
+            return (
+              <span className="text-sm" style={{ color: NOTION_TEXT_MUTED }}>
+                —
+              </span>
+            );
+          return (
+            <span
+              className="inline-flex min-w-[2.25rem] justify-center rounded-[3px] px-1.5 py-0.5 text-xs font-medium tabular-nums"
+              style={{ backgroundColor: "#f0f0ee", color: NOTION_TEXT }}
+            >
+              {pct}
+            </span>
+          );
+        },
+      },
+      {
+        key: "status",
+        header: "Status",
+        width: 140,
+        sortable: true,
+        getValue: (r) => r.status,
+        render: (_v, r) => (
+          <SelectTag label={r.status} color={statusColor(r.status)} />
+        ),
+      },
+      {
+        key: "rationale",
+        header: "Why they move your market",
+        flex: true,
+        minWidth: 260,
+        getValue: (r) => r.rationale,
+        render: (_v, r) => (
           <span
-            className="truncate text-sm font-medium"
-            style={{ color: NOTION_TEXT }}
+            className="line-clamp-2 text-sm leading-snug"
+            style={{ color: NOTION_TEXT_MUTED }}
           >
-            @{inf.handle}
+            {r.rationale || "—"}
           </span>
-        </div>
-      </Cell>
-
-      {/* Platform (select) */}
-      <Cell>
-        <SelectTag label={inf.platform} color={pColor} />
-      </Cell>
-
-      {/* Followers (number) */}
-      <Cell className="text-right">
-        <span
-          className="text-sm tabular-nums"
-          style={{ color: inf.followers != null ? NOTION_TEXT : NOTION_TEXT_MUTED }}
-        >
-          {inf.followers != null ? formatFollowers(inf.followers) : "—"}
-        </span>
-      </Cell>
-
-      {/* Fit score (number, 0–100) */}
-      <Cell className="text-right">
-        {scorePct != null ? (
-          <span
-            className="inline-flex min-w-[2.25rem] justify-center rounded-[3px] px-1.5 py-0.5 text-xs font-medium tabular-nums"
-            style={{ backgroundColor: "#f0f0ee", color: NOTION_TEXT }}
-          >
-            {scorePct}
-          </span>
-        ) : (
-          <span className="text-sm" style={{ color: NOTION_TEXT_MUTED }}>
-            —
-          </span>
-        )}
-      </Cell>
-
-      {/* Status (select) */}
-      <Cell>
-        <SelectTag label={inf.status} color={statusColor(inf.status)} />
-      </Cell>
-
-      {/* Rationale (text) */}
-      <Cell last className="max-w-[26rem]">
-        <span
-          className="line-clamp-2 text-sm leading-snug"
-          style={{ color: NOTION_TEXT_MUTED }}
-        >
-          {inf.rationale || "—"}
-        </span>
-      </Cell>
-    </tr>
+        ),
+      },
+    ],
+    [],
   );
-}
-
-export function InfluencerTable({ influencers }: InfluencerTableProps) {
-  if (influencers.length === 0) {
-    return (
-      <div
-        className="rounded-lg border px-6 py-16 text-center"
-        style={{ borderColor: NOTION_BORDER }}
-      >
-        <p className="text-sm font-medium" style={{ color: NOTION_TEXT }}>
-          No influencers yet
-        </p>
-        <p className="mt-1 text-sm" style={{ color: NOTION_TEXT_MUTED }}>
-          Run a discovery in chat — creators pebble surfaces are saved here.
-        </p>
-      </div>
-    );
-  }
 
   return (
-    <div
-      className="overflow-hidden rounded-lg border"
-      style={{ borderColor: NOTION_BORDER }}
-    >
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr style={{ backgroundColor: "#fbfbfa" }}>
-              <HeaderCell>Influencer</HeaderCell>
-              <HeaderCell>Platform</HeaderCell>
-              <HeaderCell className="text-right">Followers</HeaderCell>
-              <HeaderCell className="text-right">Fit</HeaderCell>
-              <HeaderCell>Status</HeaderCell>
-              <HeaderCell last>Why they move your market</HeaderCell>
-            </tr>
-          </thead>
-          <tbody>
-            {influencers.map((inf) => (
-              <Row key={inf.id} inf={inf} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable<StoredInfluencer>
+      columns={columns}
+      data={influencers}
+      rowKey="id"
+      defaultSort={{ key: "score", desc: true }}
+      searchable={{ placeholder: "Search influencers…" }}
+    />
   );
 }

@@ -236,7 +236,6 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
   }
 
   const burst = await chartP;
-  console.warn("[aj-chain] chartP:", JSON.stringify({ ok: !!burst, hasBurst: !!burst?.burst, pts: burst?.burst?.points?.length, rf: burst?.burst?.rankFrom }));
   if (burst?.burst?.points?.length) {
     const b = burst.burst;
     chart = {

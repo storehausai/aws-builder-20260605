@@ -103,6 +103,7 @@ function normalizeDiscovery(result: DiscoveryResult, input: DiscoveryInput): Dis
     reply: result.reply || fallbackReply(input),
     steps: result.steps?.length ? result.steps : fallbackSteps(input),
     influencers: result.influencers ?? [],
+    chart: result.chart, // preserve the real per-brand Amazon chart
   };
 }
 

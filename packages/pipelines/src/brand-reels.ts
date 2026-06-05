@@ -93,8 +93,14 @@ function brandHashtags(brand: BrandOnboarding): string[] {
   } catch {
     /* no usable host */
   }
-  return tags.slice(0, 2);
+  return tags.slice(0, 1);
 }
+
+// Tier C cache: short-lived in-memory results keyed by the primary brand hashtag,
+// so repeated discoveries of the same brand (e.g. while iterating/testing) don't
+// re-spend Apify credits. Resets on server restart; default 30-min TTL.
+const REEL_CACHE_TTL_MS = (Number(process.env.REEL_CACHE_MINUTES) || 30) * 60_000;
+const reelCache = new Map<string, { at: number; influencers: InfluencerSuggestion[] }>();
 
 /** POST an Apify actor's run-sync-get-dataset-items and return the items array. */
 async function runActor(
@@ -229,10 +235,19 @@ export async function findBrandReelInfluencers(opts: {
     return { influencers: [] };
   }
   const brandName = opts.brand.brand || tags[0]!;
+
+  // Tier C: serve a recent cached result for this hashtag — zero Apify spend.
+  const cacheKey = tags[0]!;
+  const cachedHit = reelCache.get(cacheKey);
+  if (cachedHit && Date.now() - cachedHit.at < REEL_CACHE_TTL_MS && cachedHit.influencers.length) {
+    emit(`Reusing ${cachedHit.influencers.length} cached creators for #${cacheKey} (no Apify spend).`);
+    return { influencers: cachedHit.influencers };
+  }
+
   emit(`Searching Instagram #${tags.join(", #")} for ${brandName} reels…`);
 
-  // 1) One cheap apidojo listing per tag — no pagination.
-  const maxItems = opts.listingItems ?? 50;
+  // 1) One cheap apidojo listing per tag — no pagination. (Tier A: 30 items.)
+  const maxItems = opts.listingItems ?? 30;
   const seen = new Set<string>();
   const reels: Reel[] = [];
   for (const tag of tags) {
@@ -263,7 +278,7 @@ export async function findBrandReelInfluencers(opts: {
   for (const r of [...pool].sort((a, b) => viral(b) - viral(a))) {
     if (!bestPerHandle.has(r.handle)) bestPerHandle.set(r.handle, r);
   }
-  const shortlist = [...bestPerHandle.values()].slice(0, opts.shortlist ?? 8);
+  const shortlist = [...bestPerHandle.values()].slice(0, opts.shortlist ?? 6);
   emit(`Found ${reels.length} reels — enriching the top ${shortlist.length} with real view counts…`);
   await enrich(shortlist, token);
 
@@ -287,5 +302,8 @@ export async function findBrandReelInfluencers(opts: {
       avatarUrl: r.avatarUrl,
     };
   });
+
+  // Tier C: cache this hashtag's result so repeat runs skip Apify entirely.
+  if (influencers.length) reelCache.set(cacheKey, { at: Date.now(), influencers });
   return { influencers };
 }

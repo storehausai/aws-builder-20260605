@@ -61,7 +61,7 @@ function systemPrompt(brand?: string, shortlist?: InfluencerSuggestion[]): strin
   if (!brand) {
     lines.push(
       "",
-      "You do NOT yet know the user's brand. Before searching, ask them — in one short, friendly question — for their store's homepage URL (e.g. \"Sure! What's your store's website? Drop the homepage — like getrael.com.\"). Do NOT call find_influencers until you have a homepage URL; as soon as the user gives one, call find_influencers with that exact `brandUrl`.",
+      "You do NOT yet know which COMPETITOR to analyze. The method: find the creators making viral content about a competitor brand — those creators already reach the user's target audience and can move their market too. So before searching, ask the user — in one short, friendly question — for a COMPETITOR's homepage URL (a rival brand in their space), e.g. \"Sure! Which competitor should I analyze? Drop their homepage — like getrael.com — and I'll surface the creators moving their market.\" Do NOT call find_influencers until you have a competitor URL; as soon as the user gives one, call find_influencers with that exact `brandUrl`.",
     );
   }
   if (shortlist?.length) {
@@ -84,12 +84,12 @@ const TOOLS = [
     function: {
       name: "find_influencers",
       description:
-        "Discover a ranked shortlist of creators who can move the brand's market. Returns creators with handle, platform, followers, score and a why-this-creator rationale.",
+        "Discover the creators making the most-viral content about a COMPETITOR brand — they already reach the user's target market. Pass the competitor's homepage as `brandUrl`. Returns a ranked shortlist with handle, platform, followers, score and a why-this-creator rationale.",
       parameters: {
         type: "object",
         properties: {
-          brandUrl: { type: "string", description: "Brand homepage URL, if the user provided one." },
-          query: { type: "string", description: "Free-text description of what to look for, if no URL." },
+          brandUrl: { type: "string", description: "The COMPETITOR brand's homepage URL the user gave." },
+          query: { type: "string", description: "Free-text competitor/niche description, if no URL." },
         },
       },
     },

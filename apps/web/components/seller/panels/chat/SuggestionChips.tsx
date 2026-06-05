@@ -15,8 +15,8 @@ interface SuggestionChipsProps {
 const CHIPS = [
   {
     icon: Star,
-    label: "Find market movers",
-    prompt: "Find influencers who can move my market",
+    label: "Analyze a competitor",
+    prompt: "Find influencers by analyzing a competitor's brand",
   },
   {
     icon: Zap,

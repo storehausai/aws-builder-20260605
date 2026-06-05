@@ -14,7 +14,7 @@ export interface InfluencerSuggestion {
 }
 
 export interface Visuals {
-  brand?: { name: string; category?: string; logo?: string };
+  brand?: { name: string; category?: string; logo?: string; domain?: string; summary?: string };
   competitors?: { name: string; logo?: string }[];
   chart?: {
     points: { date: string; rank: number; price?: number | null; spike: boolean }[];

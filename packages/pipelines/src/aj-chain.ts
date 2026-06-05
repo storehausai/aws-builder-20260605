@@ -226,8 +226,8 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
       influencers = r.influencers;
       const names = influencers.map((i) => `@${i.handle}`).join(", ");
       reply =
-        `For ${brand.brand || "your brand"}: the creators behind the most-viral Instagram reels about your brand are ${names}. ` +
-        `They're already making content your audience watches — want me to DM them?`;
+        `Analyzing ${brand.brand || "that competitor"}: the creators behind the most-viral Instagram reels about them are ${names}. ` +
+        `They already reach the audience you're after — want me to DM them?`;
     }
   }
 

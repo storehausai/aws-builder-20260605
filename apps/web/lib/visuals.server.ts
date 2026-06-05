@@ -15,7 +15,7 @@ const PROFILE_TTL_MS = (Number(process.env.PROFILE_TTL_HOURS) || 24 * 7) * 3_600
  * and the UI falls back to a monogram. Never throws.
  */
 export interface Visuals {
-  brand?: { name: string; category?: string; logo?: string };
+  brand?: { name: string; category?: string; logo?: string; domain?: string; summary?: string };
   competitors?: { name: string; logo?: string }[];
   chart?: {
     points: { date: string; rank: number; price?: number | null; spike: boolean }[];
@@ -37,6 +37,27 @@ const proxy = (url?: string): string | undefined => (url ? `/api/img?u=${encodeU
 function faviconFor(urlOrDomain: string): string {
   const domain = urlOrDomain.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]!;
   return `/api/img?u=${encodeURIComponent(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`)}`;
+}
+
+/** Bare registrable host (no scheme / www / path) for display, e.g. getrael.com. */
+function cleanHost(urlOrDomain: string): string {
+  try {
+    return new URL(/^https?:\/\//i.test(urlOrDomain) ? urlOrDomain : `https://${urlOrDomain}`).hostname.replace(/^www\./, "");
+  } catch {
+    return urlOrDomain.replace(/^https?:\/\//i, "").replace(/^www\./, "").split("/")[0] ?? urlOrDomain;
+  }
+}
+
+// Common DTC domain prefixes stripped so getrael → Rael, shopglossier → Glossier.
+const DOMAIN_PREFIXES = ["get", "shop", "try", "buy", "the", "go", "join", "use", "my", "drink", "eat"];
+
+/** Best-guess brand name from a homepage host: getrael.com → "Rael". */
+function brandFromDomain(urlOrDomain: string): string {
+  let label = cleanHost(urlOrDomain).split(".")[0]!.toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const p of DOMAIN_PREFIXES) {
+    if (label.length > p.length + 2 && label.startsWith(p)) { label = label.slice(p.length); break; }
+  }
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : "your brand";
 }
 
 async function engineChart(brandName: string): Promise<Visuals["chart"]> {
@@ -220,6 +241,7 @@ export async function buildVisuals(opts: {
   // Brand + competitors (from the persisted profile when we have a store).
   let brandName = "your brand";
   let category: string | undefined;
+  let summary: string | undefined;
   let competitors: string[] = [];
   let domain = opts.brandUrl;
   if (opts.storeId) {
@@ -228,6 +250,7 @@ export async function buildVisuals(opts: {
       if (bp) {
         brandName = bp.name || brandName;
         category = bp.category || undefined;
+        summary = bp.summary || undefined;
         competitors = Array.isArray(bp.competitors) ? bp.competitors : [];
         domain = bp.homepageUrl || domain;
       }
@@ -235,7 +258,16 @@ export async function buildVisuals(opts: {
       /* ignore */
     }
   }
-  visuals.brand = { name: brandName, category, logo: domain ? faviconFor(domain) : undefined };
+  // Store-less (chat-first) flow: derive a clean brand name from the URL host
+  // (getrael.com → "Rael") instead of falling back to "your brand".
+  if (brandName === "your brand" && domain) brandName = brandFromDomain(domain);
+  visuals.brand = {
+    name: brandName,
+    category,
+    summary,
+    logo: domain ? faviconFor(domain) : undefined,
+    domain: domain ? cleanHost(domain) : undefined,
+  };
   // Competitor domains are guessed → unreliable favicons; clean monograms instead.
   visuals.competitors = competitors.slice(0, 6).map((name) => ({ name }));
 

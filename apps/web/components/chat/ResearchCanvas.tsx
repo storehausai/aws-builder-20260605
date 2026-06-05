@@ -33,11 +33,30 @@ export function ResearchCanvas({
     <div className="flex flex-col gap-3">
       {brand && (
         <Section icon={Building2} title="Brand" delay={next()}>
-          <div className="flex items-center gap-3">
-            <Logo src={brand.logo} name={brand.name} size={44} square />
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-foreground">{brand.name}</div>
-              {brand.category && <div className="text-xs text-muted-foreground">{brand.category}</div>}
+          <div className="flex items-start gap-3.5 rounded-xl border border-border bg-background p-3.5">
+            <Logo src={brand.logo} name={brand.name} size={52} square />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-base font-semibold text-foreground">{brand.name}</span>
+                {brand.category && (
+                  <span className="flex-shrink-0 rounded-full bg-foreground/[0.06] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground ring-1 ring-border">
+                    {brand.category}
+                  </span>
+                )}
+              </div>
+              {brand.domain && (
+                <a
+                  href={`https://${brand.domain}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-0.5 inline-block text-xs text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  {brand.domain}
+                </a>
+              )}
+              {brand.summary && (
+                <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-muted-foreground">{brand.summary}</p>
+              )}
             </div>
           </div>
         </Section>

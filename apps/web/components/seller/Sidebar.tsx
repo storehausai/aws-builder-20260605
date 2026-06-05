@@ -313,31 +313,11 @@ function SidebarBody({
             </SidebarItem>
 
             <SidebarItem
-              icon={LayoutDashboard}
-              active={activeItem === "dashboard"}
-              onClick={() => onNavigateToDashboard?.()}
-            >
-              Dashboard
-            </SidebarItem>
-
-            <SidebarItem
               icon={Users}
               active={activeItem === "influencers"}
               onClick={() => onNavigateToInfluencers?.()}
             >
               Influencers
-            </SidebarItem>
-
-            <SidebarItem
-              icon={Search}
-              onClick={() => onOpenSearch?.()}
-              shortcut={
-                <Kbd variant="ghost" size="inherit" suppressHydrationWarning>
-                  {isMac ? "⌘K" : "Ctrl+K"}
-                </Kbd>
-              }
-            >
-              Search
             </SidebarItem>
           </div>
 

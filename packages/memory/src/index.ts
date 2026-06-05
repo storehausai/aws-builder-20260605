@@ -37,6 +37,10 @@ export interface CreateMemoryOptions {
   apiKey?: string;
   /** XTrace org id (`org_…`). Defaults to `process.env.XTRACE_ORG_ID`. */
   orgId?: string;
+  /** XTrace API base URL. Defaults to `process.env.XTRACE_API_URL` (the SDK's
+   *  default host otherwise) — required when your org is on a non-default
+   *  instance such as `https://api.production.xtrace.ai`. */
+  baseUrl?: string;
 }
 
 /**
@@ -78,7 +82,8 @@ class PebbleMemoryImpl implements PebbleMemory {
       );
     }
 
-    this.#client = new MemoryClient({ apiKey, orgId });
+    const baseUrl = this.opts.baseUrl ?? process.env.XTRACE_API_URL;
+    this.#client = new MemoryClient({ apiKey, orgId, ...(baseUrl ? { baseUrl } : {}) });
     return this.#client;
   }
 

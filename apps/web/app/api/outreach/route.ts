@@ -5,6 +5,7 @@ import {
   recordOutreach,
   tryCreateBb,
 } from "@/lib/brand.server";
+import { rememberOutreach } from "@/lib/memory.server";
 import type { OutreachResult } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -82,6 +83,9 @@ export async function POST(req: Request) {
       }
     }
   }
+
+  // Record the outreach into the agent's XTrace memory (best-effort, non-blocking).
+  if (storeId) void rememberOutreach(storeId, handle, brand ?? "your brand");
 
   return NextResponse.json(result);
 }

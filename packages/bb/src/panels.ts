@@ -19,6 +19,13 @@ export interface PanelSpec {
   brand?: string;
   brandUrl?: string;
   influencers: PanelInfluencer[];
+  /**
+   * The pre-rendered panel HTML, generated once (in the worker, at save time)
+   * and cached here. The viewer serves this verbatim so both a tap AND the
+   * link-preview unfurl are instant — regenerating per request would take ~60s+
+   * and time out the iMessage card crawler entirely.
+   */
+  html?: string;
 }
 
 export interface PanelInfluencer {

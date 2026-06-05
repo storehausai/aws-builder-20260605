@@ -4,12 +4,12 @@
  * mover → similar creators (AI) → suggestions. Honest under rate limits.
  *   set -a; source .env; set +a; pnpm --filter @pebble/tests exec tsx ../../tests/scripts/discovery-smoke.ts
  */
-import { runAjChain } from "@pebble/pipelines/aj-chain";
+import { runDiscovery } from "@pebble/pipelines";
 
 async function main() {
   const url = process.argv[2] ?? "https://www.getrael.com";
-  console.log(`\n=== runAjChain({ brandUrl: ${url} }) ===\n`);
-  const res = await runAjChain({ text: `find influencers for ${url}`, brandUrl: url });
+  console.log(`\n=== runDiscovery({ brandUrl: ${url} }) ===\n`);
+  const res = await runDiscovery({ text: `find influencers for ${url}`, brandUrl: url });
   console.log("--- narrated steps ---");
   res.steps.forEach((s, i) => console.log(`${String(i + 1).padStart(2)}. ${s}`));
   console.log("\n--- suggested influencers ---");

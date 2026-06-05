@@ -13,6 +13,7 @@ const ALLOW = [
   /(^|\.)fbcdn\.net$/i,
   /(^|\.)instagram\.com$/i,
   /(^|\.)clearbit\.com$/i,
+  /(^|\.)google\.com$/i,
   /(^|\.)googleusercontent\.com$/i,
   /(^|\.)gstatic\.com$/i,
   /(^|\.)media-amazon\.com$/i,

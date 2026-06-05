@@ -14,19 +14,17 @@ export interface Visuals {
   brand?: { name: string; category?: string; logo?: string };
   competitors?: { name: string; logo?: string }[];
   chart?: { points: { date: string; rank: number; spike: boolean }[]; productTitle?: string } | null;
-  creators?: { handle: string; avatar?: string; followers?: number; score?: number; rationale?: string }[];
+  creators?: { handle: string; avatar?: string; followers?: number; verified?: boolean; score?: number; rationale?: string }[];
 }
 
 const ENGINE_URL = process.env.ENGINE_URL ?? "http://localhost:8787";
 
 const proxy = (url?: string): string | undefined => (url ? `/api/img?u=${encodeURIComponent(url)}` : undefined);
 
-/** Clearbit logo by domain (real brand marks); proxied to dodge CORS/hotlink. */
-function logoFor(domainOrName: string): string {
-  const domain = /\./.test(domainOrName)
-    ? domainOrName.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]!
-    : `${domainOrName.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`;
-  return `/api/img?u=${encodeURIComponent(`https://logo.clearbit.com/${domain}?size=128`)}`;
+/** Brand mark via Google's favicon service (reliable; real domain only). */
+function faviconFor(urlOrDomain: string): string {
+  const domain = urlOrDomain.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]!;
+  return `/api/img?u=${encodeURIComponent(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`)}`;
 }
 
 async function engineChart(brandName: string): Promise<Visuals["chart"]> {
@@ -57,30 +55,96 @@ async function engineChart(brandName: string): Promise<Visuals["chart"]> {
   }
 }
 
-/** Resolve a real Instagram avatar for each top creator (bounded + parallel). */
-async function creatorAvatars(
-  influencers: InfluencerSuggestion[],
-): Promise<Visuals["creators"]> {
-  const top = influencers.slice(0, 6);
-  return Promise.all(
-    top.map(async (inf) => {
-      let avatar: string | undefined;
-      try {
-        const p = await resolveInstagramProfile(inf.handle);
-        avatar = proxy(p?.profilePicUrl);
-        if (p?.followers && !inf.followers) inf.followers = p.followers;
-      } catch {
-        /* fall back to monogram */
-      }
+interface ResolvedProfile {
+  profilePicUrl?: string;
+  followers?: number;
+  fullName?: string;
+  isVerified?: boolean;
+  exists: boolean;
+}
+
+// Session cache so repeat discoveries don't re-spend ScrapeCreators credits or
+// re-hit the rate-limited free endpoint for the same handle.
+const profileCache = new Map<string, ResolvedProfile>();
+
+/** ScrapeCreators IG profile (paid key, no rate limit) — the reliable source. */
+async function scProfile(handle: string): Promise<ResolvedProfile | null> {
+  const key = process.env.SCRAPECREATORS_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch(
+      `https://api.scrapecreators.com/v1/instagram/profile?handle=${encodeURIComponent(handle)}`,
+      { headers: { "x-api-key": key }, signal: AbortSignal.timeout(12000) },
+    );
+    if (!res.ok) return null;
+    const d = (await res.json()) as { success?: boolean; data?: { user?: Record<string, unknown> } };
+    const u = d.data?.user;
+    if (!d.success || !u) return null;
+    const pic = (u.profile_pic_url_hd as string) || (u.profile_pic_url as string) || undefined;
+    return {
+      profilePicUrl: pic,
+      followers: (u.edge_followed_by as { count?: number })?.count ?? (u.follower_count as number),
+      fullName: u.full_name as string,
+      isVerified: u.is_verified as boolean,
+      exists: true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve a creator's profile: free endpoint first (cheap), ScrapeCreators next
+ *  (reliable). Cached per handle. */
+async function resolveProfile(handle: string): Promise<ResolvedProfile> {
+  const k = handle.toLowerCase().replace(/^@/, "");
+  const cached = profileCache.get(k);
+  if (cached) return cached;
+
+  let out: ResolvedProfile = { exists: false };
+  try {
+    const free = await resolveInstagramProfile(handle);
+    if (free?.profilePicUrl) {
+      out = {
+        profilePicUrl: free.profilePicUrl,
+        followers: free.followers,
+        fullName: free.fullName,
+        isVerified: free.isVerified,
+        exists: true,
+      };
+    }
+  } catch {
+    /* try SC next */
+  }
+  if (!out.profilePicUrl) {
+    const sc = await scProfile(handle);
+    if (sc) out = sc;
+  }
+  profileCache.set(k, out);
+  return out;
+}
+
+/** Resolve a real Instagram avatar for each top creator (bounded + parallel).
+ *  Prefers real, resolvable handles so a profile image shows everywhere. */
+async function creatorAvatars(influencers: InfluencerSuggestion[]): Promise<Visuals["creators"]> {
+  const enriched = await Promise.all(
+    influencers.slice(0, 8).map(async (inf) => {
+      const p = await resolveProfile(inf.handle);
       return {
         handle: inf.handle,
-        avatar,
-        followers: inf.followers,
+        avatar: proxy(p.profilePicUrl),
+        followers: p.followers ?? inf.followers,
+        verified: p.isVerified,
         score: inf.score,
         rationale: inf.rationale,
+        exists: p.exists,
       };
     }),
   );
+  // Prefer creators with a real photo; keep up to 6. If too few resolve, backfill
+  // with the rest (monogram) so the list is never empty.
+  const withPic = enriched.filter((c) => c.avatar);
+  const list = (withPic.length >= 3 ? withPic : enriched).slice(0, 6);
+  return list.map(({ exists: _exists, ...c }) => c);
 }
 
 export async function buildVisuals(opts: {
@@ -108,8 +172,9 @@ export async function buildVisuals(opts: {
       /* ignore */
     }
   }
-  visuals.brand = { name: brandName, category, logo: domain ? logoFor(domain) : undefined };
-  visuals.competitors = competitors.slice(0, 6).map((name) => ({ name, logo: logoFor(name) }));
+  visuals.brand = { name: brandName, category, logo: domain ? faviconFor(domain) : undefined };
+  // Competitor domains are guessed → unreliable favicons; clean monograms instead.
+  visuals.competitors = competitors.slice(0, 6).map((name) => ({ name }));
 
   // Chart + avatars in parallel.
   const [chart, creators] = await Promise.all([

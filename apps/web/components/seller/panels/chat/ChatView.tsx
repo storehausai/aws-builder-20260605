@@ -3,13 +3,48 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Brain } from "lucide-react";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { SuggestionChips } from "./SuggestionChips";
 import { StepTimeline } from "./StepTimeline";
+import { ResearchCanvas } from "@/components/chat/ResearchCanvas";
 import { chatStore, type StoredMessage } from "@/lib/chat-store";
-import { discover, getReplies, type DiscoveryResult } from "@/lib/api";
+import { discover, getReplies, type DiscoveryResult, type Visuals } from "@/lib/api";
 import type { PanelArtifact } from "@/components/chat/PanelHost";
+import type { PanelCreator } from "@/components/chat/CreatorsPanel";
+
+/** Build the panel's creators from the avatar-bearing visuals when present. */
+function toPanelCreators(
+  visuals: Visuals | undefined,
+  influencers: { handle: string; platform: string; pk?: string; followers?: number; score?: number; rationale: string }[],
+): PanelCreator[] {
+  if (visuals?.creators?.length) {
+    return visuals.creators.map((c) => ({
+      handle: c.handle,
+      platform: "instagram",
+      followers: c.followers,
+      score: c.score,
+      rationale: c.rationale ?? "",
+      avatar: c.avatar,
+      verified: c.verified,
+    }));
+  }
+  return influencers as PanelCreator[];
+}
+
+/** The agent's recalled XTrace memory, shown before it starts working. */
+function MemoryNote({ text }: { text: string }) {
+  const clean = text.replace(/^#+\s*/gm, "").replace(/\n{2,}/g, "\n").trim();
+  if (!clean) return null;
+  return (
+    <div className="rounded-xl border border-amber-200/70 bg-amber-50/60 px-3.5 py-2.5">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+        <Brain className="h-3 w-3" /> From memory
+      </div>
+      <p className="line-clamp-4 whitespace-pre-line text-[13px] leading-snug text-amber-900/80">{clean}</p>
+    </div>
+  );
+}
 
 const STEP_REVEAL_MS = 600;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -50,7 +85,13 @@ export function ChatView({
     const lastWithCreators = [...msgs].reverse().find((m) => m.influencers?.length);
     onPanelArtifact(
       lastWithCreators
-        ? { viz: "creators", title: "Suggested creators", brand, storeId, influencers: lastWithCreators.influencers! }
+        ? {
+            viz: "creators",
+            title: "Suggested creators",
+            brand,
+            storeId,
+            influencers: toPanelCreators(lastWithCreators.visuals, lastWithCreators.influencers!),
+          }
         : null,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,7 +112,7 @@ export function ChatView({
       persist(next);
       chatStore.touch(chatId, trimmed.slice(0, 48));
       setLoading(true);
-      setLiveSteps([]);
+      setLiveSteps(["Reading your store and mapping the market…"]);
 
       let result: DiscoveryResult;
       try {
@@ -98,6 +139,8 @@ export function ChatView({
         content: result.reply,
         steps: result.steps,
         influencers: result.influencers,
+        visuals: result.visuals,
+        memory: result.memory,
         createdAt: new Date().toISOString(),
       };
       persist([...next, assistant]);
@@ -105,8 +148,14 @@ export function ChatView({
       setLoading(false);
 
       onPanelArtifact(
-        result.influencers.length
-          ? { viz: "creators", title: "Suggested creators", brand, storeId, influencers: result.influencers }
+        result.influencers.length || result.visuals?.creators?.length
+          ? {
+              viz: "creators",
+              title: "Suggested creators",
+              brand,
+              storeId,
+              influencers: toPanelCreators(result.visuals, result.influencers),
+            }
           : null,
       );
     },
@@ -202,7 +251,9 @@ function Message({ m }: { m: StoredMessage }) {
   }
   return (
     <div className="flex flex-col gap-2.5">
+      {m.memory && <MemoryNote text={m.memory} />}
       {m.steps && m.steps.length > 0 && <StepTimeline steps={m.steps} done />}
+      {m.visuals && <ResearchCanvas visuals={m.visuals} />}
       <div className="prose prose-sm max-w-none text-foreground prose-p:my-1.5 prose-strong:text-foreground">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
       </div>

@@ -19,6 +19,10 @@ export interface StoredMessage {
   steps?: string[];
   /** Discovery influencers attached to an assistant turn (drives the panel). */
   influencers?: StoredInfluencer[];
+  /** Visual research data (logos, BSR chart, IG avatars) for the canvas. */
+  visuals?: import("./api").Visuals;
+  /** What the agent recalled from XTrace memory for this turn. */
+  memory?: string;
   createdAt: string;
 }
 

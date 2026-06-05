@@ -8,6 +8,7 @@ import {
   tryCreateBb,
   type BrandPayload,
 } from "@/lib/brand.server";
+import { rememberBrand } from "@/lib/memory.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,6 +60,15 @@ export async function POST(req: Request) {
       await persistBrandProfile(bb, storeId, brand);
     } catch (err) {
       console.warn("[/api/onboard] persistence failed (non-fatal):", err);
+    }
+  }
+
+  // Teach the agent's XTrace memory about this brand (best-effort).
+  if (storeId) {
+    try {
+      await rememberBrand(storeId, brand);
+    } catch (err) {
+      console.warn("[/api/onboard] memory write failed (non-fatal):", err);
     }
   }
 

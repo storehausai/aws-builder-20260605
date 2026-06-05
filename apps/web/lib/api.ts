@@ -13,10 +13,20 @@ export interface InfluencerSuggestion {
   rationale: string;
 }
 
+export interface Visuals {
+  brand?: { name: string; category?: string; logo?: string };
+  competitors?: { name: string; logo?: string }[];
+  chart?: { points: { date: string; rank: number; spike: boolean }[]; productTitle?: string } | null;
+  creators?: { handle: string; avatar?: string; followers?: number; verified?: boolean; score?: number; rationale?: string }[];
+}
+
 export interface DiscoveryResult {
   steps: string[];
   reply: string;
   influencers: InfluencerSuggestion[];
+  visuals?: Visuals;
+  /** What the agent recalled from XTrace about this brand (shown in chat). */
+  memory?: string;
 }
 
 export interface OutreachResult {
@@ -56,6 +66,15 @@ export interface ReplyItem {
 
 export interface RepliesResult {
   replies: ReplyItem[];
+}
+
+/** The AI-generated dashboard artifact (a complete self-contained HTML doc). */
+export interface PanelResult {
+  ok: boolean;
+  title: string;
+  html: string;
+  /** model id that wrote it, or "fallback". */
+  source: string;
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -104,6 +123,14 @@ export function outreach(input: {
   storeId?: string;
 }): Promise<OutreachResult> {
   return postJson<OutreachResult>("/api/outreach", input);
+}
+
+export function generatePanel(input: {
+  brand?: string;
+  brandUrl?: string;
+  influencers: InfluencerSuggestion[];
+}): Promise<PanelResult> {
+  return postJson<PanelResult>("/api/generate-panel", input);
 }
 
 export async function getReplies(

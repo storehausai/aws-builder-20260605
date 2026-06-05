@@ -43,8 +43,8 @@ export default async function Image({ params }: { params: Params }) {
       >
         {/* header */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", alignItems: "center", color: ACCENT, fontSize: 30, fontWeight: 700 }}>
-            ● Storehaus
+          <div style={{ display: "flex", alignItems: "center", color: ACCENT, fontSize: 30, fontWeight: 700, letterSpacing: 1 }}>
+            STOREHAUS
           </div>
           <div style={{ display: "flex", fontSize: 64, fontWeight: 800, marginTop: 18, lineHeight: 1.1 }}>
             {card.title}

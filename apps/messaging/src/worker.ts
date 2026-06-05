@@ -83,10 +83,17 @@ async function deliverPanelLink(
   try {
     const bb = createBb();
     const storeId = await ensureMessagingStore(bb);
+    // Pre-render the panel HTML now so the viewer (and the iMessage card unfurl)
+    // serve instantly instead of regenerating — and so the link-preview crawler
+    // doesn't time out waiting on a ~60s AI generation.
+    const html = await renderPanelHtml(result).catch((err) => {
+      console.warn("[worker] panel pre-render failed; viewer will lazy-render:", errText(err));
+      return undefined;
+    });
     const id = await savePanel(bb, {
       storeId,
       title: result.brand ? `${result.brand} — creators` : "Recommended creators",
-      spec: { brand: result.brand, influencers },
+      spec: { brand: result.brand, influencers, html },
     });
     const url = `${base.replace(/\/$/, "")}/panel/${id}`;
     await space.send(richlink(url));
@@ -94,6 +101,22 @@ async function deliverPanelLink(
   } catch (err) {
     console.warn("[worker] panel link failed (text reply still sent):", errText(err));
   }
+}
+
+/**
+ * Generate the panel HTML via `@pebble/pipelines.generatePanel`, resolved
+ * dynamically (same defensive pattern as discovery — the package may not export
+ * it yet). Returns undefined when unavailable, so the viewer can lazy-render.
+ */
+async function renderPanelHtml(result: DiscoveryResult): Promise<string | undefined> {
+  const mod = (await import("@pebble/pipelines")) as Record<string, unknown>;
+  const gen = mod.generatePanel;
+  if (typeof gen !== "function") return undefined;
+  const panel = (await (gen as (i: unknown) => Promise<unknown>)({
+    brand: result.brand,
+    influencers: result.influencers ?? [],
+  })) as { html?: string } | undefined;
+  return panel?.html;
 }
 
 /**

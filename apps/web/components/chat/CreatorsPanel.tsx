@@ -6,13 +6,44 @@ import { NOTION_TEXT, NOTION_TEXT_MUTED, CHART_PLATFORM_PALETTE } from "@/lib/co
 import { formatFollowers } from "@/lib/utils";
 import { KpiStrip, type Kpi } from "./KpiStrip";
 import { Button } from "@/components/ui/button";
+import { BadgeCheck } from "lucide-react";
 import { outreach, type InfluencerSuggestion, type OutreachResult } from "@/lib/api";
+
+/** A panel creator carries the resolved profile image + verified flag. */
+export type PanelCreator = InfluencerSuggestion & { avatar?: string; verified?: boolean };
 
 export interface CreatorsArtifact {
   title: string;
   brand?: string;
   storeId?: string;
-  influencers: InfluencerSuggestion[];
+  influencers: PanelCreator[];
+}
+
+/** Profile image with a clean monogram fallback (used everywhere creators show). */
+function Avatar({ src, handle, size = 40 }: { src?: string; handle: string; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <span
+        className="flex flex-shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-text-secondary ring-1 ring-border"
+        style={{ width: size, height: size }}
+      >
+        {handle.replace(/^@/, "").slice(0, 2).toUpperCase()}
+      </span>
+    );
+    }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={`@${handle}`}
+      width={size}
+      height={size}
+      onError={() => setFailed(true)}
+      className="flex-shrink-0 rounded-full object-cover ring-1 ring-border"
+      style={{ width: size, height: size }}
+    />
+  );
 }
 
 interface CreatorsPanelProps {
@@ -45,13 +76,12 @@ function CreatorCard({
   storeId,
   onOutreach,
 }: {
-  c: InfluencerSuggestion;
+  c: PanelCreator;
   brand?: string;
   storeId?: string;
   onOutreach?: (handle: string, result: OutreachResult) => void;
 }) {
   const [state, setState] = useState<"idle" | "sending" | "done">("idle");
-  const Icon = platformIcon(c.platform);
 
   async function approveAndDm() {
     setState("sending");
@@ -69,10 +99,8 @@ function CreatorCard({
 
   return (
     <div className="flex flex-col gap-2.5 rounded-lg border border-border bg-card p-3.5 transition-shadow hover:shadow-sm">
-      <div className="flex items-start gap-2">
-        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-text-secondary">
-          <Icon className="h-4 w-4" />
-        </span>
+      <div className="flex items-start gap-2.5">
+        <Avatar src={c.avatar} handle={c.handle} size={40} />
         <div className="min-w-0 flex-1">
           <div
             className="flex items-center gap-1.5 truncate text-sm font-semibold"
@@ -80,6 +108,7 @@ function CreatorCard({
           >
             <PlatformDot platform={c.platform} />
             <span className="truncate">@{c.handle}</span>
+            {c.verified && <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0 text-sky-500" />}
           </div>
           <div className="mt-0.5 text-xs" style={{ color: NOTION_TEXT_MUTED }}>
             {c.platform}

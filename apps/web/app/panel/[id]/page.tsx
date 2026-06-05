@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { createBb, loadPanel } from "@pebble/bb";
 import { runPanel } from "@/lib/pipelines.server";
 import { panelCard } from "@/lib/panel-card";
@@ -17,12 +18,31 @@ export const dynamic = "force-dynamic";
 
 type Params = Promise<{ id: string }>;
 
+/**
+ * Resolve the public origin for absolute OG URLs. The link-preview crawler
+ * (Photon) fetches the page and then the OG `image`, so that image URL must be a
+ * PUBLIC host it can reach — never `localhost` (Next's `metadataBase` default).
+ *
+ * `PUBLIC_WEB_URL` is the source of truth (set to the tunnel / custom domain).
+ * We fall back to the request's forwarded host, then localhost, so the page
+ * still renders if the env var is missing — only the card image would suffer.
+ */
+async function requestOrigin(): Promise<URL> {
+  const fromEnv = process.env.PUBLIC_WEB_URL?.trim();
+  if (fromEnv && !/localhost|127\.0\.0\.1/.test(fromEnv)) return new URL(fromEnv);
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:8080";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return new URL(`${proto}://${host}`);
+}
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
   const panel = await loadPanel(createBb(), id).catch(() => null);
   if (!panel) return { title: "Panel not found" };
   const card = panelCard(panel.spec);
   return {
+    metadataBase: await requestOrigin(),
     title: card.title,
     description: card.summary,
     openGraph: {
@@ -40,11 +60,14 @@ export default async function PanelPage({ params }: { params: Params }) {
   const panel = await loadPanel(createBb(), id).catch(() => null);
   if (!panel) notFound();
 
-  const result = await runPanel({
+  // Prefer the HTML the worker pre-rendered (instant). Only fall back to a live
+  // generation if it's missing — that path is slow (~60s) but keeps the panel
+  // working for rows created before pre-rendering existed.
+  const html = panel.spec.html ?? (await runPanel({
     brand: panel.spec.brand,
     brandUrl: panel.spec.brandUrl,
     influencers: panel.spec.influencers,
-  });
+  })).html;
 
   // The panel is a complete, self-contained HTML document. Render it verbatim
   // in a sandboxed iframe — `allow-scripts` (no `allow-same-origin`) keeps it
@@ -53,7 +76,7 @@ export default async function PanelPage({ params }: { params: Params }) {
     <main style={{ position: "fixed", inset: 0, background: "#fff" }}>
       <iframe
         title={panel.title ?? "Panel"}
-        srcDoc={result.html}
+        srcDoc={html}
         sandbox="allow-scripts"
         style={{ width: "100%", height: "100%", border: "none" }}
       />

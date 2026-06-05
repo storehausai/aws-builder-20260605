@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { runDiscovery } from "@/lib/pipelines.server";
 import { persistCandidates, tryCreateBb } from "@/lib/brand.server";
 import { buildVisuals, type Visuals } from "@/lib/visuals.server";
+import { recallForStore, rememberDiscovery } from "@/lib/memory.server";
 import type { DiscoveryResult } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -67,5 +68,23 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json(result);
+  // Recall what the agent already knows about this brand (XTrace) + enrich with
+  // visual data (logos, BSR chart, real IG avatars). Both best-effort.
+  let visuals: Visuals | undefined;
+  let memory = "";
+  try {
+    [visuals, memory] = await Promise.all([
+      buildVisuals({ storeId, brandUrl, influencers: result.influencers }),
+      storeId ? recallForStore(storeId, text) : Promise.resolve(""),
+    ]);
+  } catch (err) {
+    console.warn("[/api/discover] enrichment failed:", err);
+  }
+
+  // Record this discovery into the agent's memory for next time (don't block).
+  if (storeId && result.influencers.length) {
+    void rememberDiscovery(storeId, visuals?.brand?.name ?? brandUrl ?? "your brand", result.influencers);
+  }
+
+  return NextResponse.json({ ...result, visuals, memory: memory || undefined });
 }

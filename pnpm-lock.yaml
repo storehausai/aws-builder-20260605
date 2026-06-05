@@ -94,6 +94,9 @@ importers:
       '@pebble/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@pebble/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@pebble/panels':
         specifier: workspace:*
         version: link:../../packages/panels

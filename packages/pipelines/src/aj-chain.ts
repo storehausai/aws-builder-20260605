@@ -196,17 +196,22 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
     steps.push(s);
   };
 
+  // (a) brand from its homepage (or inferred from free text).
   const brand = await stepOnboard(input, emit).catch((): BrandOnboarding => {
     emit("Couldn't fully read the homepage — proceeding on category signal.");
     return { brand: input.brandUrl ? hostname(input.brandUrl) : "your brand", category: "", summary: "", competitors: [], seedAsins: [], homepageUrl: input.brandUrl ?? "" };
   });
 
-  // (b)–(j): COMPETITOR products → biggest steady-price Amazon burst in the last
-  // year → Instagram posts in the 7-day pre-burst window → TOP 3 creators who
-  // drove it. Brand-relevant by construction (they posted about a competitor's
-  // product right before its rank jumped). Falls back to category lookalikes.
+  // (b) competitor products on Amazon.
+  stepAsins(brand, emit);
+
   let influencers: InfluencerSuggestion[] = [];
   let reply = "";
+
+  // (c–j) PRIMARY attribution: the biggest steady-price burst across COMPETITOR
+  // products → the Instagram creators who posted in its 7-day pre-burst window →
+  // TOP 3 who drove it. Brand-relevant by construction (they posted about a
+  // competitor's product right before its rank jumped). Needs Keepa + SC keys.
   const haveKeys = Boolean(process.env.KEEPA_API_KEY?.trim() && process.env.SCRAPECREATORS_API_KEY?.trim());
   if (haveKeys) {
     const r = await findInfluencersFromBurst({ brand, emit }).catch(() => null);
@@ -221,12 +226,27 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
     }
   }
 
-  // Fallback: category-fit lookalikes (no keys, no recent burst, or no in-window creators).
+  // (c–h) ENGINE path: when the in-process burst path surfaced no creators, ask
+  // the engine for the proven market mover — first the RocketRide HTTP engine
+  // (ENGINE_URL/market-movers), then the in-process LIVE Keepa engine if the
+  // HTTP one is unavailable. Then (i) find lookalikes of the mover and (j) rank.
+  // Degrades to category-fit creators (mover = null) when no mover can be proven.
   if (influencers.length === 0) {
-    emit("Falling back to category-fit creators.");
-    const candidates = await stepSimilar(brand, null, emit).catch(() => [] as CreatorCandidate[]);
-    influencers = buildSuggestions(null, candidates);
-    reply = buildReply(brand, null, influencers);
+    let mover = await stepMarketMover(brand, emit).catch(() => null);
+    if (!mover && haveKeys) {
+      const live = await findMarketMoverLive({ brand, emit }).catch(() => null);
+      if (live?.mover) {
+        mover = {
+          handle: live.mover.handle,
+          followers: live.mover.followers ?? undefined,
+          sigma: live.mover.sigma,
+          evidence: live.mover.evidence,
+        };
+      }
+    }
+    const candidates = await stepSimilar(brand, mover, emit).catch(() => [] as CreatorCandidate[]);
+    influencers = buildSuggestions(mover, candidates);
+    reply = buildReply(brand, mover, influencers);
   }
 
   emit("Ranking the shortlist…");

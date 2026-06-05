@@ -20,6 +20,29 @@ export interface Visuals {
   creators?: { handle: string; avatar?: string; followers?: number; verified?: boolean; score?: number; rationale?: string }[];
 }
 
+/** A persisted influencer candidate (a row of `influencer_candidate`). */
+export interface StoredInfluencer {
+  id: string;
+  platform: "instagram" | "tiktok" | "youtube" | string;
+  handle: string;
+  followers: number | null;
+  /** cascade / market-mover composite, 0..1. */
+  score: number | null;
+  rationale: string;
+  /** suggested | contacted | replied | … */
+  status: string;
+  createdAt: string;
+}
+
+/** A single outreach message in an influencer's conversation history. */
+export interface OutreachMessage {
+  id: string;
+  direction: "inbound" | "outbound";
+  channel: string;
+  body: string;
+  sentAt: string;
+}
+
 export interface DiscoveryResult {
   steps: string[];
   reply: string;
@@ -114,6 +137,31 @@ export function discover(
   storeId?: string,
 ): Promise<DiscoveryResult> {
   return postJson<DiscoveryResult>("/api/discover", { text, storeId });
+}
+
+export async function getInfluencers(
+  storeId: string,
+): Promise<StoredInfluencer[]> {
+  const res = await fetch(
+    `/api/influencers?storeId=${encodeURIComponent(storeId)}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as { influencers?: StoredInfluencer[] };
+  return body.influencers ?? [];
+}
+
+export async function getInfluencerMessages(
+  storeId: string,
+  influencerId: string,
+): Promise<OutreachMessage[]> {
+  const res = await fetch(
+    `/api/influencers/${encodeURIComponent(influencerId)}/messages?storeId=${encodeURIComponent(storeId)}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as { messages?: OutreachMessage[] };
+  return body.messages ?? [];
 }
 
 export function outreach(input: {

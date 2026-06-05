@@ -23,6 +23,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "next-intl": [
+        "./lib/shims/next-intl.ts"
+      ],
+      "@storehausai/shared": [
+        "./lib/shims/storehaus-shared.ts"
       ]
     },
     "allowJs": true,

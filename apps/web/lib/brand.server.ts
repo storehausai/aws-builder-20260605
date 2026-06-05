@@ -7,6 +7,7 @@ import {
 } from "@pebble/bb";
 import type { InfluencerSuggestion } from "@pebble/pipelines";
 import type { BrandOnboarding } from "@pebble/providers";
+import type { StoredInfluencer, OutreachMessage } from "@/lib/api";
 
 /**
  * Shared Butterbase persistence helpers for the brand / onboarding /
@@ -215,6 +216,95 @@ export async function persistCandidates(
   }
 }
 
+/**
+ * List the persisted influencer candidates for a store, ordered best-fit first
+ * (highest score, then most recent). Best-effort: returns [] on any failure or
+ * when Butterbase isn't configured. Powers the Influencers sidebar tab.
+ */
+export async function listCandidates(
+  storeId: string,
+): Promise<StoredInfluencer[]> {
+  const bb = tryCreateBb();
+  if (!bb) return [];
+  try {
+    const rows = (unwrapMaybe(
+      await bb
+        .from("influencer_candidate")
+        .select(
+          "id, platform, handle, followers, score, rationale, status, created_at",
+        )
+        .eq("store_id", storeId)
+        .order("created_at", { ascending: false }),
+    ) ?? []) as RawCandidate[];
+
+    return rows
+      .map((r) => ({
+        id: r.id,
+        platform: r.platform ?? "instagram",
+        handle: (r.handle ?? "").replace(/^@/, ""),
+        followers: r.followers ?? null,
+        score: r.score ?? null,
+        rationale: r.rationale ?? "",
+        status: r.status ?? "suggested",
+        createdAt: r.created_at ?? "",
+      }))
+      .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  } catch (err) {
+    console.warn("[brand.server] listCandidates failed:", err);
+    return [];
+  }
+}
+
+/**
+ * Read the full outreach conversation for one influencer candidate, oldest
+ * first — every message across all of the candidate's threads (outbound DMs +
+ * inbound replies). Best-effort: returns [] on any failure. Powers the
+ * influencer detail drawer's message history.
+ */
+export async function listInfluencerMessages(
+  storeId: string,
+  candidateId: string,
+): Promise<OutreachMessage[]> {
+  const bb = tryCreateBb();
+  if (!bb) return [];
+  try {
+    const threads = (unwrapMaybe(
+      await bb
+        .from("outreach_thread")
+        .select("id")
+        .eq("store_id", storeId)
+        .eq("candidate_id", candidateId),
+    ) ?? []) as { id: string }[];
+
+    if (threads.length === 0) return [];
+
+    const messages: OutreachMessage[] = [];
+    for (const thread of threads) {
+      const rows = (unwrapMaybe(
+        await bb
+          .from("outreach_message")
+          .select("id, direction, channel, body, sent_at")
+          .eq("thread_id", thread.id)
+          .order("sent_at", { ascending: true }),
+      ) ?? []) as RawMessage[];
+      for (const r of rows) {
+        messages.push({
+          id: r.id,
+          direction: r.direction === "inbound" ? "inbound" : "outbound",
+          channel: r.channel ?? "instagram",
+          body: r.body ?? "",
+          sentAt: r.sent_at ?? "",
+        });
+      }
+    }
+
+    return messages.sort((a, b) => a.sentAt.localeCompare(b.sentAt));
+  } catch (err) {
+    console.warn("[brand.server] listInfluencerMessages failed:", err);
+    return [];
+  }
+}
+
 /** Resolve a candidate id by (store_id, handle), or null when absent. */
 export async function findCandidateId(
   bb: Bb,
@@ -291,6 +381,25 @@ export async function recordOutreach(
 }
 
 /* ------------------------------- helpers ------------------------------- */
+
+interface RawMessage {
+  id: string;
+  direction?: string | null;
+  channel?: string | null;
+  body?: string | null;
+  sent_at?: string | null;
+}
+
+interface RawCandidate {
+  id: string;
+  platform?: string | null;
+  handle?: string | null;
+  followers?: number | null;
+  score?: number | null;
+  rationale?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+}
 
 interface RawBrandProfile {
   homepage_url?: string | null;

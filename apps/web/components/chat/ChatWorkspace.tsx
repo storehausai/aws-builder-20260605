@@ -72,6 +72,7 @@ export function ChatWorkspace({
         onNewChat={onNewChat}
         onNavigateToTask={onSelect}
         onNavigateToDashboard={() => router.push("/dashboard")}
+        onNavigateToInfluencers={() => router.push("/influencers")}
         onUpdateChat={(id, data) => chatStore.update(id, data)}
         activeTaskId={selectedChatId}
       />

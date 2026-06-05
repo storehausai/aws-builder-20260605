@@ -29,6 +29,12 @@ export async function fetchReplies(
   storeId?: string,
   sinceIso?: string,
 ): Promise<ReplyRecord[]> {
+  // When the web-graphql IG backend is active, surface replies LIVE from the IG
+  // inbox (throttled in @pebble/pipelines) so demo step 7 works without the
+  // messaging worker or Butterbase. Falls through to Butterbase otherwise.
+  const live = await fetchRepliesLive(sinceIso);
+  if (live !== null) return live;
+
   if (
     !process.env.BUTTERBASE_APP_ID &&
     !process.env.NEXT_PUBLIC_BUTTERBASE_APP_ID
@@ -73,6 +79,39 @@ export async function fetchReplies(
     } catch {
       return [];
     }
+  }
+}
+
+/**
+ * Live IG-inbox path. Returns null when the web-graphql backend isn't active
+ * (so the caller falls back to Butterbase). The actual IG fetch is throttled
+ * inside @pebble/pipelines, so frequent chat polls don't hammer Instagram.
+ */
+async function fetchRepliesLive(sinceIso?: string): Promise<ReplyRecord[] | null> {
+  const backend = (process.env.IG_BACKEND ?? "").toLowerCase();
+  if ((backend !== "web" && backend !== "web-graphql") || !process.env.IG_SESSIONID) {
+    return null;
+  }
+  try {
+    const mod = (await import("@pebble/pipelines")) as {
+      pollReplies?: (sinceMs?: number) => Promise<
+        Array<{ id: string; handle: string; body: string; channel: string; sentAt: string }>
+      >;
+    };
+    if (typeof mod.pollReplies !== "function") return null;
+    const sinceMs = sinceIso ? Date.parse(sinceIso) : 0;
+    const msgs = await mod.pollReplies(Number.isNaN(sinceMs) ? 0 : sinceMs);
+    return msgs.map((m) => ({
+      id: m.id,
+      handle: m.handle,
+      body: m.body,
+      channel: m.channel,
+      sent_at: m.sentAt,
+      sentAt: m.sentAt,
+    }));
+  } catch (err) {
+    console.warn("[replies] live IG poll failed:", err instanceof Error ? err.message : err);
+    return null;
   }
 }
 

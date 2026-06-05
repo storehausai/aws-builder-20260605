@@ -36,9 +36,9 @@ async function composeMessage(input: OutreachInput): Promise<string> {
 /** Whether the Instagram backend has the credentials it needs to send. */
 function instagramConfigured(env = process.env): boolean {
   const backend = (env.IG_BACKEND ?? "private").toLowerCase();
-  return backend === "graph"
-    ? Boolean(env.IG_ACCESS_TOKEN)
-    : Boolean(env.IG_USERNAME && env.IG_PASSWORD);
+  if (backend === "graph") return Boolean(env.IG_ACCESS_TOKEN);
+  if (backend === "web" || backend === "web-graphql") return Boolean(env.IG_SESSIONID);
+  return Boolean(env.IG_USERNAME && env.IG_PASSWORD);
 }
 
 /** Built-in template DM, used when the AI compose step fails. */

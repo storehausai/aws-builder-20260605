@@ -79,3 +79,14 @@ export interface PanelResult {
   /** The model id that wrote it, or "fallback" for the static dashboard. */
   source: string;
 }
+
+export interface ReplyMessage {
+  /** Stable id (thread + timestamp) so the chat can dedupe. */
+  id: string;
+  /** The influencer's @handle (or pk if the handle is unknown). */
+  handle: string;
+  body: string;
+  channel: "instagram";
+  /** ISO timestamp. */
+  sentAt: string;
+}

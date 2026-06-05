@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { Building2, TrendingUp, Users, Instagram } from "lucide-react";
-import type { Visuals } from "@/lib/api";
+import { Building2, TrendingUp, Users, Instagram, Send, Check, Loader2 } from "lucide-react";
+import { outreach, type Visuals, type OutreachResult } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,7 +13,17 @@ import { cn } from "@/lib/utils";
  * engine's series), and real Instagram creator avatars. Each section animates in.
  * Images fall back to a clean monogram when a logo/avatar can't be fetched.
  */
-export function ResearchCanvas({ visuals }: { visuals: Visuals }) {
+export function ResearchCanvas({
+  visuals,
+  storeId,
+  brand: brandName,
+  onOutreach,
+}: {
+  visuals: Visuals;
+  storeId?: string;
+  brand?: string;
+  onOutreach?: (handle: string, result: OutreachResult) => void;
+}) {
   const { brand, competitors, chart, creators } = visuals;
   const hasChart = !!chart && chart.points.length > 2;
   let d = 0;
@@ -85,36 +95,85 @@ export function ResearchCanvas({ visuals }: { visuals: Visuals }) {
         <Section icon={Users} title={`Creators (${creators.length})`} delay={next()}>
           <div className="grid grid-cols-1 gap-2">
             {creators.map((c, i) => (
-              <motion.div
+              <CreatorRow
                 key={c.handle}
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.05 * i, duration: 0.25 }}
-                className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2"
-              >
-                <Logo src={c.avatar} name={c.handle} size={36} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1 text-sm font-medium text-foreground">
-                    <Instagram className="h-3 w-3 text-muted-foreground" />@{c.handle}
-                  </div>
-                  {c.followers != null && (
-                    <div className="text-xs text-muted-foreground">{fmtFollowers(c.followers)} followers</div>
-                  )}
-                </div>
-                {c.score != null && (
-                  <div className="flex w-16 flex-shrink-0 flex-col items-end gap-1">
-                    <span className="text-xs font-semibold text-foreground">{Math.round(c.score * 100)}</span>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
-                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.round(c.score * 100)}%` }} />
-                    </div>
-                  </div>
-                )}
-              </motion.div>
+                c={c}
+                i={i}
+                storeId={storeId}
+                brand={brandName}
+                onOutreach={onOutreach}
+              />
             ))}
           </div>
         </Section>
       )}
     </div>
+  );
+}
+
+function CreatorRow({
+  c,
+  i,
+  storeId,
+  brand,
+  onOutreach,
+}: {
+  c: NonNullable<Visuals["creators"]>[number];
+  i: number;
+  storeId?: string;
+  brand?: string;
+  onOutreach?: (handle: string, result: OutreachResult) => void;
+}) {
+  const [state, setState] = useState<"idle" | "sending" | "done">("idle");
+  async function dm() {
+    setState("sending");
+    try {
+      const r = await outreach({ handle: c.handle, brand, storeId });
+      onOutreach?.(c.handle, r);
+      setState("done");
+    } catch {
+      setState("idle");
+    }
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -6 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.05 * i, duration: 0.25 }}
+      className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2"
+    >
+      <Logo src={c.avatar} name={c.handle} size={36} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1 text-sm font-medium text-foreground">
+          <Instagram className="h-3 w-3 text-muted-foreground" />@{c.handle}
+        </div>
+        {c.followers != null && (
+          <div className="text-xs text-muted-foreground">{fmtFollowers(c.followers)} followers</div>
+        )}
+      </div>
+      {c.score != null && (
+        <span className="flex-shrink-0 text-xs font-semibold tabular-nums text-foreground">{Math.round(c.score * 100)}</span>
+      )}
+      <button
+        onClick={dm}
+        disabled={state !== "idle"}
+        className="inline-flex h-7 flex-shrink-0 items-center gap-1 rounded-lg bg-foreground px-2.5 text-xs font-medium text-background transition-opacity disabled:opacity-60"
+      >
+        {state === "sending" ? (
+          <>
+            <Loader2 className="h-3 w-3 animate-spin" /> …
+          </>
+        ) : state === "done" ? (
+          <>
+            <Check className="h-3 w-3" /> Sent
+          </>
+        ) : (
+          <>
+            <Send className="h-3 w-3" /> DM
+          </>
+        )}
+      </button>
+    </motion.div>
   );
 }
 

@@ -16,11 +16,13 @@ export type {
   OutreachInput,
   PanelInput,
   PanelResult,
+  ReplyMessage,
 } from "./types.js";
 
 export { runDiscovery } from "./discovery.js";
 export { runOutreach } from "./outreach.js";
 export { generatePanel } from "./panel.js";
+export { pollReplies } from "./replies.js";
 export {
   createRocketRideClient,
   isReachable as isRocketRideReachable,

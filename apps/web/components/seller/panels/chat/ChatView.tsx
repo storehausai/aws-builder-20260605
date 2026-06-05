@@ -9,28 +9,7 @@ import { SuggestionChips } from "./SuggestionChips";
 import { StepTimeline } from "./StepTimeline";
 import { ResearchCanvas } from "@/components/chat/ResearchCanvas";
 import { chatStore, type StoredMessage } from "@/lib/chat-store";
-import { discover, getReplies, type DiscoveryResult, type Visuals } from "@/lib/api";
-import type { PanelArtifact } from "@/components/chat/PanelHost";
-import type { PanelCreator } from "@/components/chat/CreatorsPanel";
-
-/** Build the panel's creators from the avatar-bearing visuals when present. */
-function toPanelCreators(
-  visuals: Visuals | undefined,
-  influencers: { handle: string; platform: string; pk?: string; followers?: number; score?: number; rationale: string }[],
-): PanelCreator[] {
-  if (visuals?.creators?.length) {
-    return visuals.creators.map((c) => ({
-      handle: c.handle,
-      platform: "instagram",
-      followers: c.followers,
-      score: c.score,
-      rationale: c.rationale ?? "",
-      avatar: c.avatar,
-      verified: c.verified,
-    }));
-  }
-  return influencers as PanelCreator[];
-}
+import { discover, getReplies, type DiscoveryResult, type OutreachResult } from "@/lib/api";
 
 /** The agent's recalled XTrace memory, shown before it starts working. */
 function MemoryNote({ text }: { text: string }) {
@@ -54,13 +33,13 @@ export function ChatView({
   storeId,
   brand,
   seed,
-  onPanelArtifact,
+  onOutreach,
 }: {
   chatId: string;
   storeId: string;
   brand?: string;
   seed?: string | null;
-  onPanelArtifact: (a: PanelArtifact | null) => void;
+  onOutreach?: (handle: string, result: OutreachResult) => void;
 }) {
   const [messages, setMessages] = useState<StoredMessage[]>(() => chatStore.messages(chatId));
   const [liveSteps, setLiveSteps] = useState<string[] | null>(null);
@@ -78,23 +57,9 @@ export function ChatView({
     [chatId],
   );
 
-  // Re-lift this chat's panel (last assistant turn with influencers) on open.
+  // Reload this chat's messages on open.
   useEffect(() => {
-    const msgs = chatStore.messages(chatId);
-    setMessages(msgs);
-    const lastWithCreators = [...msgs].reverse().find((m) => m.influencers?.length);
-    onPanelArtifact(
-      lastWithCreators
-        ? {
-            viz: "creators",
-            title: "Suggested creators",
-            brand,
-            storeId,
-            influencers: toPanelCreators(lastWithCreators.visuals, lastWithCreators.influencers!),
-          }
-        : null,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setMessages(chatStore.messages(chatId));
   }, [chatId]);
 
   useEffect(() => {
@@ -146,20 +111,8 @@ export function ChatView({
       persist([...next, assistant]);
       setLiveSteps(null);
       setLoading(false);
-
-      onPanelArtifact(
-        result.influencers.length || result.visuals?.creators?.length
-          ? {
-              viz: "creators",
-              title: "Suggested creators",
-              brand,
-              storeId,
-              influencers: toPanelCreators(result.visuals, result.influencers),
-            }
-          : null,
-      );
     },
-    [chatId, storeId, brand, loading, persist, onPanelArtifact],
+    [chatId, loading, persist],
   );
 
   // Auto-send the seeded prompt (from a dashboard example chip) once.
@@ -217,7 +170,7 @@ export function ChatView({
           ) : (
             <div className="flex flex-col gap-5">
               {messages.map((m) => (
-                <Message key={m.id} m={m} />
+                <Message key={m.id} m={m} storeId={storeId} brand={brand} onOutreach={onOutreach} />
               ))}
               {loading && liveSteps != null && liveSteps.length > 0 && <StepTimeline steps={liveSteps} />}
             </div>
@@ -239,7 +192,17 @@ export function ChatView({
   );
 }
 
-function Message({ m }: { m: StoredMessage }) {
+function Message({
+  m,
+  storeId,
+  brand,
+  onOutreach,
+}: {
+  m: StoredMessage;
+  storeId: string;
+  brand?: string;
+  onOutreach?: (handle: string, result: OutreachResult) => void;
+}) {
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
@@ -253,13 +216,12 @@ function Message({ m }: { m: StoredMessage }) {
     <div className="flex flex-col gap-2.5">
       {m.memory && <MemoryNote text={m.memory} />}
       {m.steps && m.steps.length > 0 && <StepTimeline steps={m.steps} done />}
-      {m.visuals && <ResearchCanvas visuals={m.visuals} />}
+      {m.visuals && (
+        <ResearchCanvas visuals={m.visuals} storeId={storeId} brand={brand} onOutreach={onOutreach} />
+      )}
       <div className="prose prose-sm max-w-none text-foreground prose-p:my-1.5 prose-strong:text-foreground">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
       </div>
-      {m.influencers && m.influencers.length > 0 && (
-        <p className="text-xs text-muted-foreground">↳ {m.influencers.length} creators in the panel →</p>
-      )}
     </div>
   );
 }

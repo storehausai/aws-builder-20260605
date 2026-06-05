@@ -308,26 +308,6 @@ function SidebarBody({
             >
               New chat
             </SidebarItem>
-
-            <SidebarItem
-              icon={LayoutDashboard}
-              active={activeItem === "dashboard"}
-              onClick={() => onNavigateToDashboard?.()}
-            >
-              Dashboard
-            </SidebarItem>
-
-            <SidebarItem
-              icon={Search}
-              onClick={() => onOpenSearch?.()}
-              shortcut={
-                <Kbd variant="ghost" size="inherit" suppressHydrationWarning>
-                  {isMac ? "⌘K" : "Ctrl+K"}
-                </Kbd>
-              }
-            >
-              Search
-            </SidebarItem>
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden pt-2">
@@ -384,15 +364,6 @@ function SidebarBody({
             </div>
           </div>
         </DsSidebarBody>
-
-        <div className="relative flex-shrink-0">
-          <SidebarFooter className="relative z-10 bg-surface-sunken space-y-0.5">
-            <AccountPopover
-              displayName={displayName}
-              userEmail={userEmail}
-            />
-          </SidebarFooter>
-        </div>
       </DsSidebar>
     </TooltipProvider>
   );

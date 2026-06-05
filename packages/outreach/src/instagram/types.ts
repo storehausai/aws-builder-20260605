@@ -17,6 +17,8 @@ export interface IgInboundMessage {
   threadId: string;
   /** The influencer's id — pass this back as `recipientId` to reply. */
   senderId: string;
+  /** The influencer's @handle, when the provider exposes it (web-graphql does). */
+  senderHandle?: string;
   /** Our business account id. */
   recipientId: string;
   text: string;
@@ -37,12 +39,15 @@ export interface IgSendResult {
 }
 
 export interface InstagramBackend {
-  readonly kind: "graph-api" | "private-api";
+  readonly kind: "graph-api" | "private-api" | "web-graphql";
   /**
    * Send a text DM. For graph-api, `recipient` is an IGSID obtained from a prior
-   * inbound message. For private-api, `recipient` may be a user PK or @handle.
+   * inbound message. For private-api / web-graphql, `recipient` may be a user PK
+   * or @handle (cold).
    */
   sendText(recipient: string, text: string): Promise<IgSendResult>;
   /** Parse a provider webhook body (graph-api) into inbound messages. */
   parseInbound?(body: unknown): IgInboundMessage[];
+  /** Pull new inbound messages since `sinceMs` (private-api / web-graphql). */
+  pollInbound?(sinceMs: number): Promise<IgInboundMessage[]>;
 }

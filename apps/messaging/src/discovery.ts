@@ -39,9 +39,17 @@ export interface DiscoveryResult {
   influencers?: PanelInfluencer[];
   /** Brand display name, when discovery resolved one. Grounds the panel. */
   brand?: string;
+  /**
+   * The agent's narrated work, one line per step — the same `steps` the
+   * dashboard reveals one-at-a-time beside the chat. We replay these as interim
+   * iMessage texts so a text conversation feels as "alive" as the dashboard.
+   */
+  steps?: string[];
 }
 
-type RunDiscoveryFn = (arg: { text: string; convId?: string } | string) => unknown;
+type RunDiscoveryFn = (
+  arg: { text: string; convId?: string; storeId?: string; brandUrl?: string } | string,
+) => unknown;
 
 let cached: RunDiscoveryFn | null | undefined;
 
@@ -77,7 +85,10 @@ function normalize(raw: unknown): DiscoveryResult {
       ? (obj.influencers as Record<string, unknown>[]).map(toPanelInfluencer)
       : undefined;
     const brand = typeof obj.brand === "string" ? obj.brand : undefined;
-    return { reply, top, influencers, brand };
+    const steps = Array.isArray(obj.steps)
+      ? obj.steps.filter((s): s is string => typeof s === "string")
+      : undefined;
+    return { reply, top, influencers, brand, steps };
   }
   return { reply: String(raw) };
 }
@@ -86,7 +97,17 @@ function normalize(raw: unknown): DiscoveryResult {
  * Run discovery for an inbound marketer message. Never throws — on any failure
  * it returns a degraded reply so the iMessage loop always responds.
  */
-export async function runDiscovery(text: string, convId?: string): Promise<DiscoveryResult> {
+export interface DiscoveryOptions {
+  convId?: string;
+  /** Grounds discovery on the brand — the same inputs the dashboard passes. */
+  storeId?: string;
+  brandUrl?: string;
+}
+
+export async function runDiscovery(
+  text: string,
+  opts: DiscoveryOptions = {},
+): Promise<DiscoveryResult> {
   const fn = await resolveRunDiscovery();
   if (!fn) {
     return {
@@ -96,9 +117,11 @@ export async function runDiscovery(text: string, convId?: string): Promise<Disco
     };
   }
   try {
-    // Prefer the object form; runDiscovery implementations that take a bare
-    // string will read `.text` off it or ignore it — both are handled below.
-    const out = await Promise.resolve(fn({ text, convId }));
+    // Same input shape the dashboard's /api/discover sends, so the iMessage
+    // reply is grounded identically: { text, convId, storeId, brandUrl }.
+    const out = await Promise.resolve(
+      fn({ text, convId: opts.convId, storeId: opts.storeId, brandUrl: opts.brandUrl }),
+    );
     return normalize(out);
   } catch (errObj) {
     try {

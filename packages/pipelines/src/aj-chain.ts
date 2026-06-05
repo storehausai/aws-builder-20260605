@@ -25,6 +25,7 @@ import {
 } from "@pebble/providers";
 import type { DiscoveryInput, DiscoveryResult, InfluencerSuggestion } from "./types.js";
 import { findMarketMoverLive } from "./market-mover-live.js";
+import { findInfluencersFromBurst } from "./influencer-from-burst.js";
 
 const ENGINE_URL = process.env.ENGINE_URL ?? "http://localhost:8787";
 
@@ -200,46 +201,34 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
     return { brand: input.brandUrl ? hostname(input.brandUrl) : "your brand", category: "", summary: "", competitors: [], seedAsins: [], homepageUrl: input.brandUrl ?? "" };
   });
 
-  // (b)–(h): pull competitor BSR LIVE from Keepa, persist to Butterbase, run the
-  // engine on real data. Falls back to the cached HTTP engine when no Keepa key.
-  let mover: MarketMover | null = null;
-  if (process.env.KEEPA_API_KEY?.trim()) {
-    const live = await findMarketMoverLive({ brand, emit }).catch(() => null);
-    if (live) {
-      if (live.productsScanned > 0) {
-        emit(
-          `Checked Amazon BSR across ${live.productsScanned} product(s) — ${live.burstsTotal} rank burst(s) detected.`,
-        );
-      }
-      if (live.burstsTotal > 0) {
-        emit(
-          `${live.burstsSteady} held a steady price (not a discount) → consistent with outside/creator traffic.`,
-        );
-      }
-      if (live.mover) {
-        emit(
-          `Most viral in-window post → @${live.mover.handle} moved a competitor's rank with the price flat — that's the market mover.`,
-        );
-        mover = {
-          handle: live.mover.handle,
-          followers: live.mover.followers ?? undefined,
-          sigma: live.mover.sigma,
-          evidence: live.mover.evidence,
-        };
-      } else if (live.burstsTotal > 0) {
-        emit("Bursts found, but no creator content tied to a steady-price burst — widening to category lookalikes.");
-      }
+  // (b)–(j): COMPETITOR products → biggest steady-price Amazon burst in the last
+  // year → Instagram posts in the 7-day pre-burst window → TOP 3 creators who
+  // drove it. Brand-relevant by construction (they posted about a competitor's
+  // product right before its rank jumped). Falls back to category lookalikes.
+  let influencers: InfluencerSuggestion[] = [];
+  let reply = "";
+  const haveKeys = Boolean(process.env.KEEPA_API_KEY?.trim() && process.env.SCRAPECREATORS_API_KEY?.trim());
+  if (haveKeys) {
+    const r = await findInfluencersFromBurst({ brand, emit }).catch(() => null);
+    if (r && r.influencers.length) {
+      influencers = r.influencers;
+      const names = influencers.map((i) => `@${i.handle}`).join(", ");
+      const prod = (r.burst?.productTitle ?? "").slice(0, 40);
+      reply =
+        `For ${brand.brand || "your brand"}: the creators who moved ${r.burst?.competitor}'s "${prod}" on Amazon ` +
+        `(rank #${r.burst?.rankFrom}→#${r.burst?.rankTo}, price held flat) were ${names}. ` +
+        `They've proven they can drive sales in your category — want me to DM them?`;
     }
-  } else {
-    stepAsins(brand, emit);
-    mover = await stepMarketMover(brand, emit).catch(() => null);
   }
 
-  const candidates = await stepSimilar(brand, mover, emit).catch(() => [] as CreatorCandidate[]);
+  // Fallback: category-fit lookalikes (no keys, no recent burst, or no in-window creators).
+  if (influencers.length === 0) {
+    emit("Falling back to category-fit creators.");
+    const candidates = await stepSimilar(brand, null, emit).catch(() => [] as CreatorCandidate[]);
+    influencers = buildSuggestions(null, candidates);
+    reply = buildReply(brand, null, influencers);
+  }
 
-  const influencers = buildSuggestions(mover, candidates);
   emit("Ranking the shortlist…");
-  const reply = buildReply(brand, mover, influencers);
-
   return { reply, steps, influencers };
 }

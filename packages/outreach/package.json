@@ -10,6 +10,7 @@
     "webhook": "tsx scripts/webhook-server.ts",
     "ig:login": "tsx scripts/ig-login.ts",
     "ig:challenge": "tsx scripts/ig-challenge.ts",
+    "ig:web": "tsx scripts/ig-web-test.ts",
     "ig:poll": "tsx scripts/poll-inbound.ts",
     "typecheck": "tsc --noEmit"
   },

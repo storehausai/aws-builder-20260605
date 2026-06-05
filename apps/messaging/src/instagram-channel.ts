@@ -18,7 +18,7 @@
  * On each new inbound influencer DM we invoke a caller-supplied handler (which
  * records it to Butterbase and relays it to the marketer over iMessage).
  */
-import { requirePrivate, type IgInboundMessage } from "@pebble/outreach";
+import { requirePoller, type IgInboundMessage } from "@pebble/outreach";
 
 export type InboundHandler = (msg: IgInboundMessage) => Promise<void>;
 
@@ -47,11 +47,11 @@ export async function runInstagramChannel(
     return;
   }
 
-  let backend: ReturnType<typeof requirePrivate>;
+  let backend: ReturnType<typeof requirePoller>;
   try {
-    backend = requirePrivate();
+    backend = requirePoller();
   } catch (err) {
-    console.warn("[ig] could not init private backend:", errText(err), "— relay disabled.");
+    console.warn("[ig] could not init IG poller backend:", errText(err), "— relay disabled.");
     return;
   }
 

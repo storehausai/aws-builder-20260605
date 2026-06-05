@@ -30,6 +30,14 @@ export interface MessagingConfig {
    * unfurl. Falls back to WEB_URL when PUBLIC_WEB_URL is unset.
    */
   publicWebUrl?: string;
+  /**
+   * The fixed demo brand the iMessage agent grounds discovery on — the same
+   * grounding the dashboard passes after onboarding. Over a text there's no
+   * "logged-in store", so for the single-brand demo we pin one store/brand
+   * here, making the iMessage reply match the dashboard chat exactly.
+   */
+  marketerStoreId?: string;
+  marketerBrandUrl?: string;
 }
 
 function num(value: string | undefined, fallback: number): number {
@@ -50,6 +58,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): MessagingConfi
       (env.BUTTERBASE_APP_ID ?? env.NEXT_PUBLIC_BUTTERBASE_APP_ID)?.trim(),
     ),
     publicWebUrl: (env.PUBLIC_WEB_URL ?? env.WEB_URL)?.trim() || undefined,
+    // Default to the onboarded demo brand (Rael) so discovery is grounded the
+    // same way the dashboard grounds it. Override per deployment via env.
+    marketerStoreId:
+      env.MARKETER_STORE_ID?.trim() || "46c2b764-633b-470d-aff1-0b7842ead84f",
+    marketerBrandUrl: env.MARKETER_BRAND_URL?.trim() || "https://www.getrael.com",
   };
 }
 

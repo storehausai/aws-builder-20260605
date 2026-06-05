@@ -33,11 +33,10 @@
  *   const marketerSpace = await ig.space({ phone });   // resolve a DM space by handle
  */
 import "dotenv/config";
-import { Spectrum, richlink, type Space, type Message } from "spectrum-ts";
+import { Spectrum, type Space, type Message } from "spectrum-ts";
 import { imessage } from "spectrum-ts/providers/imessage";
 import { terminal } from "spectrum-ts/providers/terminal";
 import type { IgInboundMessage } from "@pebble/outreach";
-import { createBb, ensureMessagingStore, savePanel } from "@pebble/bb";
 
 import { loadConfig, hasSpectrumCloud, type MessagingConfig } from "./config.js";
 import { runDiscovery, type DiscoveryResult } from "./discovery.js";
@@ -50,73 +49,48 @@ function textOf(message: Message): string | undefined {
   return c.type === "text" ? c.text : undefined;
 }
 
-/** Compose the discovery reply (+ optional top-influencer lines) into one send. */
-function composeReply(reply: string, top: string[] | undefined): string {
-  if (!top || top.length === 0) return reply;
-  return [reply, "", ...top.map((t) => `• ${t}`)].join("\n");
+/**
+ * Render a discovery result as iMessage text that mirrors the dashboard chat:
+ * the agent's prose reply, followed by the same ranked creator shortlist the
+ * dashboard shows beside the conversation — handle, fit score, and rationale.
+ * iMessage is text-only, so the dashboard's creator "cards" become numbered
+ * lines, but the content and ordering are identical.
+ */
+function formatReply(result: DiscoveryResult): string {
+  const lines: string[] = [result.reply.trim()];
+  const creators = result.influencers ?? [];
+  if (creators.length > 0) {
+    lines.push("");
+    creators.slice(0, 6).forEach((c, i) => {
+      const fit =
+        typeof c.score === "number" ? ` · ${Math.round(c.score * 100)}% fit` : "";
+      lines.push(`${i + 1}. @${c.handle}${fit}`);
+      if (c.rationale) lines.push(`   ${c.rationale}`);
+    });
+  }
+  return lines.join("\n");
 }
 
+const STEP_REVEAL_MS = 800;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /**
- * Persist the discovery result as a panel and text back a tappable link to it.
- * iMessage can't host the interactive HTML panel inline, so we save the panel's
- * grounding spec, then send a `richlink` — Photon fetches `/panel/[id]` and
- * renders a preview card (title, summary, OG image) the marketer can tap to
- * open the full dashboard in Safari.
- *
- * Best-effort: any failure here is swallowed so the text reply still lands. A
- * missing/`localhost` public URL is skipped (it can't unfurl on a phone).
+ * Replay the agent's narrated work as interim iMessage texts, one per step with
+ * a short pause between — the text-conversation analogue of the dashboard
+ * revealing its steps one-at-a-time beside the chat. Aborts cleanly on shutdown.
  */
-async function deliverPanelLink(
+async function revealSteps(
   space: Space,
-  result: DiscoveryResult,
-  cfg: MessagingConfig,
+  steps: string[] | undefined,
+  signal: AbortSignal,
 ): Promise<void> {
-  const influencers = result.influencers ?? [];
-  if (influencers.length === 0) return;
-  const base = cfg.publicWebUrl;
-  if (!base || /^https?:\/\/(localhost|127\.|0\.0\.0\.0)/.test(base)) {
-    console.warn(
-      "[worker] skipping panel link — PUBLIC_WEB_URL is unset or local; a phone can't reach it.",
-    );
-    return;
+  for (const step of steps ?? []) {
+    if (signal.aborted) return;
+    const line = step.trim();
+    if (!line) continue;
+    await space.send(line);
+    await sleep(STEP_REVEAL_MS);
   }
-  try {
-    const bb = createBb();
-    const storeId = await ensureMessagingStore(bb);
-    // Pre-render the panel HTML now so the viewer (and the iMessage card unfurl)
-    // serve instantly instead of regenerating — and so the link-preview crawler
-    // doesn't time out waiting on a ~60s AI generation.
-    const html = await renderPanelHtml(result).catch((err) => {
-      console.warn("[worker] panel pre-render failed; viewer will lazy-render:", errText(err));
-      return undefined;
-    });
-    const id = await savePanel(bb, {
-      storeId,
-      title: result.brand ? `${result.brand} — creators` : "Recommended creators",
-      spec: { brand: result.brand, influencers, html },
-    });
-    const url = `${base.replace(/\/$/, "")}/panel/${id}`;
-    await space.send(richlink(url));
-    console.log(`[worker] sent panel link: ${url}`);
-  } catch (err) {
-    console.warn("[worker] panel link failed (text reply still sent):", errText(err));
-  }
-}
-
-/**
- * Generate the panel HTML via `@pebble/pipelines.generatePanel`, resolved
- * dynamically (same defensive pattern as discovery — the package may not export
- * it yet). Returns undefined when unavailable, so the viewer can lazy-render.
- */
-async function renderPanelHtml(result: DiscoveryResult): Promise<string | undefined> {
-  const mod = (await import("@pebble/pipelines")) as Record<string, unknown>;
-  const gen = mod.generatePanel;
-  if (typeof gen !== "function") return undefined;
-  const panel = (await (gen as (i: unknown) => Promise<unknown>)({
-    brand: result.brand,
-    influencers: result.influencers ?? [],
-  })) as { html?: string } | undefined;
-  return panel?.html;
 }
 
 /**
@@ -211,10 +185,20 @@ async function main(): Promise<void> {
         // Key the conversation on the stable Spectrum space id, so one iMessage
         // conversation maps to one continuous chat/context (XTrace conv_id).
         const convId = typeof space.id === "string" ? space.id : undefined;
-        const result = await runDiscovery(text, convId);
-        await space.send(composeReply(result.reply, result.top));
-        // When discovery produced creators, follow up with a tappable panel card.
-        await deliverPanelLink(space, result, cfg);
+        // Immediate ack so the (real, ~1–2 min) discovery wait isn't silent —
+        // the dashboard's equivalent is its loading state.
+        await space.send("On it — finding creators for you… (about a minute)");
+        // Ground on the same brand the dashboard uses, so the iMessage reply
+        // matches the dashboard chat instead of falling back to "the brand".
+        const result = await runDiscovery(text, {
+          convId,
+          storeId: cfg.marketerStoreId,
+          brandUrl: cfg.marketerBrandUrl,
+        });
+        // Replay the agent's work as interim texts (the dashboard reveals these
+        // beside the chat), then send the final grounded reply + creators.
+        await revealSteps(space, result.steps, controller.signal);
+        await space.send(formatReply(result));
       } catch (err) {
         console.error("[worker] error handling inbound message:", errText(err));
       }

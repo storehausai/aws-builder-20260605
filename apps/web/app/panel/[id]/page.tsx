@@ -41,17 +41,19 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const panel = await loadPanel(createBb(), id).catch(() => null);
   if (!panel) return { title: "Panel not found" };
   const card = panelCard(panel.spec);
+  const origin = await requestOrigin();
+  const imageUrl = `${origin.origin}/panel/${id}/opengraph-image`;
   return {
-    metadataBase: await requestOrigin(),
+    metadataBase: origin,
     title: card.title,
     description: card.summary,
     openGraph: {
       title: card.title,
       description: card.summary,
       type: "website",
-      // The colocated opengraph-image.tsx is picked up automatically by Next.
+      images: [{ url: imageUrl, width: 1200, height: 630 }],
     },
-    twitter: { card: "summary_large_image", title: card.title, description: card.summary },
+    twitter: { card: "summary_large_image", title: card.title, description: card.summary, images: [imageUrl] },
   };
 }
 

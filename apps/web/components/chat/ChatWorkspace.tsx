@@ -2,11 +2,9 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/seller/Sidebar";
 import { ChatView } from "@/components/seller/panels/chat/ChatView";
-import { PanelHost, type PanelArtifact } from "@/components/chat/PanelHost";
 import { chatStore } from "@/lib/chat-store";
 import type { OutreachResult } from "@/lib/api";
 
@@ -38,7 +36,6 @@ export function ChatWorkspace({
     return c.id;
   });
   const [seed, setSeed] = useState<string | null>(initialSeed ?? null);
-  const [panel, setPanel] = useState<PanelArtifact | null>(null);
 
   const syncUrl = (id: string) => {
     if (typeof window !== "undefined") window.history.replaceState(null, "", `/chat/${id}`);
@@ -48,14 +45,12 @@ export function ChatWorkspace({
     const c = chatStore.create(storeId);
     setSelectedChatId(c.id);
     setSeed(null);
-    setPanel(null);
     syncUrl(c.id);
   }, [storeId]);
 
   const onSelect = useCallback((id: string) => {
     setSelectedChatId(id);
     setSeed(null);
-    setPanel(null);
     syncUrl(id);
   }, []);
 
@@ -81,22 +76,14 @@ export function ChatWorkspace({
         activeTaskId={selectedChatId}
       />
       <div className="min-w-0 flex-1">
-        <PanelGroup direction="horizontal" className="h-full">
-          <Panel defaultSize={48} minSize={32}>
-            <ChatView
-              key={selectedChatId}
-              chatId={selectedChatId}
-              storeId={storeId}
-              brand={brand}
-              seed={seed}
-              onPanelArtifact={setPanel}
-            />
-          </Panel>
-          <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-foreground/20" />
-          <Panel defaultSize={52} minSize={28}>
-            <PanelHost artifact={panel} onOutreach={onOutreach} />
-          </Panel>
-        </PanelGroup>
+        <ChatView
+          key={selectedChatId}
+          chatId={selectedChatId}
+          storeId={storeId}
+          brand={brand}
+          seed={seed}
+          onOutreach={onOutreach}
+        />
       </div>
     </div>
   );

@@ -20,7 +20,7 @@ const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 const DAY = 86400000;
 
 async function hashtagPage(tag: string, cursor: number) {
-  const p = new URLSearchParams({ hashtag: tag.replace(/^#/, ""), trim: "false", cursor: String(cursor) });
+  const p = new URLSearchParams({ hashtag: tag.replace(/^#/, ""), trim: "true", cursor: String(cursor) });
   const url = `${SC_BASE}/v1/tiktok/search/hashtag?${p}`;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -43,11 +43,15 @@ async function mineTags(seed: string): Promise<{ tags: string[]; mentions: strin
   for (let i = 0; i < 3; i++) {
     const { items, next } = await hashtagPage(seed, cursor);
     for (const it of items) {
+      const desc = String(it.desc ?? "");
       for (const te of it.text_extra ?? []) {
         if (te.hashtag_name) tagCount.set(te.hashtag_name.toLowerCase(), (tagCount.get(te.hashtag_name.toLowerCase()) ?? 0) + 1);
       }
-      const m = String(it.desc ?? "").match(/@[\w.]+/g) ?? [];
-      for (const mm of m) menCount.set(mm.toLowerCase(), (menCount.get(mm.toLowerCase()) ?? 0) + 1);
+      for (const h of desc.match(/#[\w]+/g) ?? []) {
+        const t = h.slice(1).toLowerCase();
+        tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
+      }
+      for (const mm of desc.match(/@[\w.]+/g) ?? []) menCount.set(mm.toLowerCase(), (menCount.get(mm.toLowerCase()) ?? 0) + 1);
     }
     if (next == null || next === cursor) break; cursor = next;
   }

@@ -40,6 +40,70 @@ export interface BurstInfluencerResult {
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
+/* ------------------------- brand-name resolution ------------------------- */
+
+// Common DTC domain affixes — "getrael" → "rael", "shopglossier" → "glossier".
+const DOMAIN_PREFIXES = ["get", "shop", "try", "buy", "the", "go", "join", "use", "my", "drink", "eat"];
+const DOMAIN_SUFFIXES = ["official", "store", "shop", "beauty", "care", "cosmetics", "hq", "co", "app", "inc"];
+
+/** Strip a leading/trailing DTC affix from a domain-style brand label (lowercased, alnum only). */
+function deAffix(name: string): string {
+  let s = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const p of DOMAIN_PREFIXES) {
+    if (s.length > p.length + 2 && s.startsWith(p)) { s = s.slice(p.length); break; }
+  }
+  for (const suf of DOMAIN_SUFFIXES) {
+    if (s.length > suf.length + 2 && s.endsWith(suf)) { s = s.slice(0, -suf.length); break; }
+  }
+  return s;
+}
+
+/** Host label of a homepage URL with www + TLD stripped: "https://www.getrael.com" → "getrael". */
+function hostLabel(url?: string): string {
+  if (!url) return "";
+  try {
+    const h = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname;
+    const parts = h.replace(/^www\./i, "").split(".");
+    return (parts.length > 1 ? parts.slice(0, -1).join(".") : parts[0] ?? "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+/** Ordered, deduped list of brand-name candidates to try on Keepa. */
+function brandCandidates(brand: BrandOnboarding): string[] {
+  const out: string[] = [];
+  const push = (c?: string) => {
+    const v = (c ?? "").trim();
+    if (v && !out.some((x) => x.toLowerCase() === v.toLowerCase())) out.push(v);
+  };
+  push(brand.brand);                 // (a) as onboarded
+  push(deAffix(brand.brand || ""));  // (b) de-affixed (getrael → rael)
+  const host = hostLabel(brand.homepageUrl); // (c) homepage host label
+  push(host);
+  push(deAffix(host));               // and its de-affixed form
+  return out.filter(Boolean);
+}
+
+// VieBeauti's REAL Amazon ASINs — confirmed via Keepa Product Finder
+// (resolveBrand "viebeauti") + /product history (each has hundreds–thousands of
+// daily sales-rank points), so this demo brand ALWAYS renders a real chart.
+const VIEBEAUTI_ASINS = [
+  "B07R69YCX4", // VieBeauti Premium Eyelash Growth Serum (2-pack) — flagship, ~15.5k rank pts
+  "B0FBT2D135", // VieBeauti Lash Serum for Eyelash Growth (3mL)
+  "B0FWKLSTRP", // VieBeauti Eyelash Growth Serum 5mL
+  "B0D1W32R2K", // VieBeauti Premium Eyelash Growth Serum
+  "B085WBZNFR", // VieBeauti Eyebrow Growth Serum 3mL
+];
+
+/** True when the onboarded brand is the pinned VieBeauti demo brand. */
+function isViebeauti(brand: BrandOnboarding): boolean {
+  const url = (brand.homepageUrl ?? "").toLowerCase();
+  if (url.includes("viebeauti")) return true;
+  const da = deAffix(brand.brand || "");
+  return da === "viebeauti" || da === "viebeauty" || da === "vie";
+}
+
 /* ----------------------------- Instagram I/O ----------------------------- */
 
 interface IgPost { id: string; handle: string; takenMs: number; views: number; likes: number; comments: number; caption: string; url: string; isPaid: boolean; thumbnailUrl?: string; videoUrl?: string; avatarUrl?: string; }
@@ -205,12 +269,58 @@ export async function findInfluencersFromBurst(opts: {
 
   const keepaKey = env.KEEPA_API_KEY?.trim();
   const scKey = env.SCRAPECREATORS_API_KEY?.trim();
-  if (!keepaKey || !scKey) { emit("Missing Keepa/ScrapeCreators key — can't run burst attribution."); return none; }
-
-  const competitors = (opts.brand.competitors.length ? opts.brand.competitors : []).slice(0, opts.maxCompetitors ?? 3);
-  if (competitors.length === 0) { emit("No competitors identified — can't analyze competitor products."); return none; }
+  if (!keepaKey) { emit("Missing Keepa key — can't analyze Amazon sales-rank."); return none; }
 
   const keepa = createKeepaAdapter(keepaKey, 1);
+
+  // CHART (option A): the SEARCHED brand's OWN real Amazon rank/price history —
+  // NOT a fixture, NOT a competitor. Use its onboarded seed ASINs when present
+  // (fast, no extra Keepa call), else resolve the brand on Keepa. Only Keepa is
+  // needed here; ScrapeCreators is not.
+  if (opts.chartOnly) {
+    const subject = opts.brand.brand || "the brand";
+    const limit = opts.asinsPerCompetitor ?? 10;
+    emit(`Pulling ${subject}'s real Amazon sales-rank history…`);
+
+    // 0) PINNED demo brand: VieBeauti always renders a real chart from its known
+    //    real Amazon ASINs (no resolveBrand round-trip needed).
+    if (isViebeauti(opts.brand)) {
+      const best = await strongestBurst(keepa, subject, VIEBEAUTI_ASINS.slice(0, limit), emit);
+      if (best) {
+        emit(`${subject} on Amazon: "${best.productTitle.slice(0, 40)}" — rank #${best.rankFrom.toLocaleString()} → #${best.rankTo.toLocaleString()} on ${best.date}.`);
+        return { burst: best, influencers: [] };
+      }
+      // else fall through to the generic resolution path below
+    }
+
+    // 1) Prefer onboarded seed ASINs (fast, no extra Keepa call).
+    let asins = (opts.brand.seedAsins ?? []).map((a) => String(a).trim()).filter(Boolean).slice(0, limit);
+
+    // 2) No seeds → try each brand-name candidate (as-is, de-affixed, host label)
+    //    until one resolves on Keepa. Fixes "getrael" (domain) → "rael".
+    if (!asins.length) {
+      const candidates = brandCandidates(opts.brand);
+      for (const cand of candidates) {
+        const found = await keepa.resolveBrand(cand, limit).catch(() => [] as { asin: string }[]);
+        const got = found.map((f) => f.asin).filter(Boolean).slice(0, limit);
+        if (got.length) {
+          if (cand.toLowerCase() !== subject.toLowerCase()) emit(`Matched ${subject} on Amazon as "${cand}".`);
+          asins = got;
+          break;
+        }
+      }
+    }
+
+    if (!asins.length) { emit(`No Amazon products found for ${subject}.`); return none; }
+    const best = await strongestBurst(keepa, subject, asins, emit);
+    if (best) emit(`${subject} on Amazon: "${best.productTitle.slice(0, 40)}" — rank #${best.rankFrom.toLocaleString()} → #${best.rankTo.toLocaleString()} on ${best.date}.`);
+    else emit(`No sales-rank history for ${subject}.`);
+    return { burst: best, influencers: [] };
+  }
+
+  if (!scKey) { emit("Missing ScrapeCreators key — can't run the creator search."); return none; }
+  const competitors = (opts.brand.competitors.length ? opts.brand.competitors : []).slice(0, opts.maxCompetitors ?? 3);
+  if (competitors.length === 0) { emit("No competitors identified — can't analyze competitor products."); return none; }
   let writer: ReturnType<typeof createIngestionWriter> | null = null;
   try { writer = createIngestionWriter(createBb()); } catch { writer = null; }
 
@@ -312,4 +422,56 @@ export async function findInfluencersFromBurst(opts: {
     });
   }
   return { burst: best, influencers };
+}
+
+/**
+ * The strongest sales-rank story across a set of ASINs, with the full daily
+ * rank+price series for the chart. Prefers a steady-price (gate "passed") burst
+ * in the last year; if none passes, falls back to the product with the biggest
+ * rank improvement so a real chart still renders. Returns null only when no
+ * product has enough history.
+ */
+async function strongestBurst(
+  keepa: ReturnType<typeof createKeepaAdapter>,
+  label: string,
+  asins: string[],
+  emit: (s: string) => void,
+): Promise<(BurstContext & { strength: number }) | null> {
+  let best: (BurstContext & { strength: number }) | null = null; // steady-price burst
+  let fallback: (BurstContext & { strength: number }) | null = null; // most movement, any gate
+  const cutoff = Date.now() - 365 * DAY;
+  try {
+    const raw = await keepa.getProductsHistory(asins);
+    const norm = keepa.normalizeProductHistory(raw);
+    const byAsin = new Map<string, NormalizedProductPoint[]>();
+    for (const pt of norm.points) { const a = byAsin.get(pt.externalId) ?? []; a.push(pt); byAsin.set(pt.externalId, a); }
+    for (const [asin, pts] of byAsin) {
+      if (pts.length < 8) continue;
+      pts.sort((a, b) => (a.snapshotDate < b.snapshotDate ? -1 : 1));
+      const dates = pts.map((p) => p.snapshotDate);
+      const ranks: number[] = []; let last = 0;
+      for (const p of pts) { if (p.rank != null) last = p.rank; ranks.push(p.rank ?? last); }
+      const prices = pts.map((p) => p.price ?? null);
+      const res = findMarketMovers({ product: { asin }, series: { dates, ranks, prices }, content: [] });
+      const prod = norm.products.find((p) => p.externalId === asin);
+      const title = prod?.title ?? asin;
+      const spikeSet = new Set(res.spikes.filter((s) => s.gate === "passed").map((s) => s.date));
+      const points: ChartPoint[] = dates.map((dd, i) => ({ date: dd, rank: ranks[i] ?? 0, price: prices[i] ?? null, spike: spikeSet.has(dd) }));
+      const meta = { competitor: label, asin, productTitle: title, productImage: prod?.imageUrl ?? undefined, points };
+      for (const s of res.spikes) {
+        if (s.gate !== "passed") continue;
+        if (Date.parse(`${s.date}T00:00:00Z`) < cutoff) continue;
+        const strength = s.rankFrom - s.rankTo;
+        if (!best || strength > best.strength) best = { ...meta, date: s.date, rankFrom: s.rankFrom, rankTo: s.rankTo, z: s.z, strength };
+      }
+      const valid = ranks.filter((r) => r > 0);
+      if (valid.length) {
+        const minR = Math.min(...valid), maxR = Math.max(...valid), strength = maxR - minR;
+        if (!fallback || strength > fallback.strength) {
+          fallback = { ...meta, date: dates[ranks.indexOf(minR)] ?? dates[dates.length - 1]!, rankFrom: maxR, rankTo: minR, z: 0, strength };
+        }
+      }
+    }
+  } catch (e) { emit(`(${label}: ${(e as Error).message ?? "skipped"})`); }
+  return best ?? fallback;
 }

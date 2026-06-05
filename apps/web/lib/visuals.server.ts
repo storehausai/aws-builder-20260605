@@ -271,13 +271,10 @@ export async function buildVisuals(opts: {
   // Competitor domains are guessed → unreliable favicons; clean monograms instead.
   visuals.competitors = competitors.slice(0, 6).map((name) => ({ name }));
 
-  // Chart + avatars in parallel.
-  const [chart, creators] = await Promise.all([
-    engineChart(brandName),
-    creatorAvatars(opts.influencers),
-  ]);
-  visuals.chart = chart;
-  visuals.creators = creators;
+  // The rank/price chart is the SEARCHED brand's REAL Keepa series — set by the
+  // caller from the discovery result (option A). We no longer use the local
+  // engine fixture, which always returned Rael regardless of the brand.
+  visuals.creators = await creatorAvatars(opts.influencers);
 
   return visuals;
 }

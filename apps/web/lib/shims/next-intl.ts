@@ -1,7 +1,6 @@
 /**
  * Minimal local shim for `next-intl`'s `useTranslations`.
  *
- * The storehaus UI components vendored into pebble (data-table, calculate-row,
  * selection-action-bar) were authored against next-intl. pebble has no i18n
  * runtime, so this shim resolves the `common` namespace keys those components
  * actually request to plain English strings. Mapped via the `next-intl`

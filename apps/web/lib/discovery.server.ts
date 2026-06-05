@@ -49,6 +49,10 @@ export async function discoverEnriched(input: {
     console.warn("[discoverEnriched] enrichment failed:", err);
   }
 
+  // Option A: the chart is the SEARCHED brand's real Keepa series (result.chart),
+  // not the engine fixture. Attach it to visuals so the canvas renders it.
+  if (visuals) visuals.chart = result.chart ?? null;
+
   if (input.storeId && result.influencers.length) {
     void rememberDiscovery(
       input.storeId,

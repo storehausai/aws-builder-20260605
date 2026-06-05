@@ -215,7 +215,7 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
   // The CHART shows the COMPETITOR product whose real Amazon sales-rank burst
   // (steady price, last 1y) motivates the outreach — separate from the brand-reel
   // creator search. Runs in parallel; never blocks the influencers.
-  const haveKeepa = Boolean(process.env.KEEPA_API_KEY?.trim() && process.env.SCRAPECREATORS_API_KEY?.trim());
+  const haveKeepa = Boolean(process.env.KEEPA_API_KEY?.trim());
   const chartP = haveKeepa
     ? findInfluencersFromBurst({ brand, emit, chartOnly: true }).catch(() => null)
     : Promise.resolve(null);
@@ -232,6 +232,7 @@ export async function runAjChain(input: DiscoveryInput): Promise<DiscoveryResult
   }
 
   const burst = await chartP;
+  console.warn("[aj-chain] chartP:", JSON.stringify({ ok: !!burst, hasBurst: !!burst?.burst, pts: burst?.burst?.points?.length, rf: burst?.burst?.rankFrom }));
   if (burst?.burst?.points?.length) {
     const b = burst.burst;
     chart = {

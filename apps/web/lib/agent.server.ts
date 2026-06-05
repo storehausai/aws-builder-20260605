@@ -1,5 +1,6 @@
 import { discoverEnriched, type EnrichedDiscovery } from "@/lib/discovery.server";
 import { runOutreach } from "@/lib/pipelines.server";
+import { persistOutreach } from "@/lib/brand.server";
 import { fetchReplies } from "@/lib/replies.server";
 import type { InfluencerSuggestion } from "@/lib/types";
 import type { Visuals } from "@/lib/visuals.server";
@@ -249,6 +250,8 @@ async function execTool(
       const message = typeof args.message === "string" ? args.message : undefined;
       steps.push(`📨 DMing @${handle}…`);
       const r = await runOutreach({ handle, draft: message, brand: ctx.brand, storeId: ctx.storeId });
+      // CRM: any creator we DM lands on the Influencers tab (best-effort).
+      await persistOutreach(ctx.storeId, handle, r);
       steps.push(
         r.delivered
           ? `✅ DM delivered to @${handle}.`

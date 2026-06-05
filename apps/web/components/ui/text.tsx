@@ -102,7 +102,8 @@ type TextElement =
   | "h6";
 
 export interface TextProps
-  extends Omit<React.HTMLAttributes<HTMLElement>, "color">,
+  extends
+    Omit<React.HTMLAttributes<HTMLElement>, "color">,
     VariantProps<typeof textVariants> {
   as?: TextElement;
 }

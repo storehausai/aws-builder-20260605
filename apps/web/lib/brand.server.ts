@@ -32,6 +32,56 @@ import type { StoredInfluencer, OutreachMessage } from "@/lib/api";
 /** Fixed demo owner for stores created from the onboarding flow. */
 export const DEMO_OWNER_ID = "00000000-0000-0000-0000-000000000000";
 
+/**
+ * DB-unavailable handling.
+ *
+ * The Butterbase service key in use may have LLM credits but not own the
+ * Butterbase app, in which case every DB call throws RESOURCE_NOT_FOUND /
+ * "App not found". That's expected and non-fatal for the (store-less) demo
+ * flow, so we suppress it: log a SINGLE one-time warning and then degrade
+ * silently. Any other (unexpected) error still warns, but no helper ever
+ * throws out of the DB layer.
+ */
+let dbUnavailableWarned = false;
+
+/** True when the error is the known "Butterbase app not owned / not found" failure. */
+function isDbUnavailableError(err: unknown): boolean {
+  const text = (() => {
+    if (!err) return "";
+    if (typeof err === "string") return err;
+    if (err instanceof Error) return `${err.message} ${String((err as { code?: unknown }).code ?? "")}`;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  })().toLowerCase();
+  return (
+    text.includes("resource_not_found") ||
+    text.includes("app not found") ||
+    text.includes("app_id")
+  );
+}
+
+/**
+ * Central, non-throwing error sink for every DB helper. Suppresses the known
+ * DB-unavailable error to a one-time warning; warns once-per-call for anything
+ * unexpected. Never rethrows.
+ */
+function handleDbError(scope: string, err: unknown): void {
+  if (isDbUnavailableError(err)) {
+    if (!dbUnavailableWarned) {
+      dbUnavailableWarned = true;
+      console.warn(
+        `[brand.server] Butterbase DB unavailable (App not found / RESOURCE_NOT_FOUND); ` +
+          `degrading silently for the rest of this process. First seen in ${scope}.`,
+      );
+    }
+    return;
+  }
+  console.warn(`[brand.server] ${scope} failed:`, err);
+}
+
 /** The brand shape returned by the API (mirrors BrandOnboarding's fields). */
 export interface BrandPayload {
   name: string;
@@ -82,20 +132,25 @@ export function slugFromUrl(url: string): string {
 export async function ensureStore(
   bb: Bb,
   opts: { slug: string; name: string; ownerId?: string },
-): Promise<string> {
-  const row = await upsertReturning<{ id: string }>(
-    bb,
-    "stores",
-    {
-      slug: opts.slug,
-      name: opts.name,
-      owner_id: opts.ownerId ?? DEMO_OWNER_ID,
-      updated_at: new Date().toISOString(),
-    },
-    ["slug"],
-    "id",
-  );
-  return row.id;
+): Promise<string | null> {
+  try {
+    const row = await upsertReturning<{ id: string }>(
+      bb,
+      "stores",
+      {
+        slug: opts.slug,
+        name: opts.name,
+        owner_id: opts.ownerId ?? DEMO_OWNER_ID,
+        updated_at: new Date().toISOString(),
+      },
+      ["slug"],
+      "id",
+    );
+    return row.id;
+  } catch (err) {
+    handleDbError("ensureStore", err);
+    return null;
+  }
 }
 
 /**
@@ -105,9 +160,11 @@ export async function ensureStore(
  */
 export async function persistBrandProfile(
   bb: Bb,
-  storeId: string,
+  storeId: string | null,
   brand: BrandPayload,
 ): Promise<void> {
+  // No store (e.g. ensureStore degraded because the DB is unavailable) — skip.
+  if (!storeId) return;
   const row = {
     store_id: storeId,
     homepage_url: brand.homepageUrl,
@@ -120,25 +177,29 @@ export async function persistBrandProfile(
     competitors: JSON.stringify(brand.competitors ?? []),
   };
 
-  const existing = unwrapMaybe(
-    await bb
-      .from("brand_profile")
-      .select("id")
-      .eq("store_id", storeId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ) as { id: string } | null;
+  try {
+    const existing = unwrapMaybe(
+      await bb
+        .from("brand_profile")
+        .select("id")
+        .eq("store_id", storeId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ) as { id: string } | null;
 
-  if (existing?.id) {
-    const res = await bb
-      .from("brand_profile")
-      .update(row)
-      .eq("id", existing.id);
-    if (res.error) throw new Error(`brand_profile update: ${String(res.error)}`);
-  } else {
-    const res = await bb.from("brand_profile").insert(row);
-    if (res.error) throw new Error(`brand_profile insert: ${String(res.error)}`);
+    if (existing?.id) {
+      const res = await bb
+        .from("brand_profile")
+        .update(row)
+        .eq("id", existing.id);
+      if (res.error) handleDbError("persistBrandProfile (update)", res.error);
+    } else {
+      const res = await bb.from("brand_profile").insert(row);
+      if (res.error) handleDbError("persistBrandProfile (insert)", res.error);
+    }
+  } catch (err) {
+    handleDbError("persistBrandProfile", err);
   }
 }
 
@@ -169,7 +230,8 @@ export async function getBrandProfile(
       seedAsins: toStringArray(row.seed_asins),
       homepageUrl: row.homepage_url ?? "",
     };
-  } catch {
+  } catch (err) {
+    handleDbError("getBrandProfile", err);
     return null;
   }
 }
@@ -209,11 +271,18 @@ export async function persistCandidates(
         status: "suggested",
       });
       if (res.error) {
-        // Non-fatal: log and keep going with the rest.
-        console.warn("[brand.server] candidate insert failed:", res.error);
+        // Non-fatal: suppress the DB-unavailable case, then stop trying the
+        // remaining candidates (they'd all hit the same wall and spam the log).
+        if (isDbUnavailableError(res.error)) {
+          handleDbError("persistCandidates", res.error);
+          return;
+        }
+        handleDbError("persistCandidates (insert)", res.error);
       }
     } catch (err) {
-      console.warn("[brand.server] candidate persist error:", err);
+      handleDbError("persistCandidates", err);
+      // If the whole DB is unavailable, abort the loop rather than retry per-row.
+      if (isDbUnavailableError(err)) return;
     }
   }
 }
@@ -259,7 +328,8 @@ export async function getFreshCandidates(
       if (!prev || (cand.score ?? 0) > (prev.score ?? 0)) byHandle.set(handle, cand);
     }
     return [...byHandle.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  } catch {
+  } catch (err) {
+    handleDbError("getFreshCandidates", err);
     return [];
   }
 }
@@ -298,7 +368,7 @@ export async function listCandidates(
       }))
       .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
   } catch (err) {
-    console.warn("[brand.server] listCandidates failed:", err);
+    handleDbError("listCandidates", err);
     return [];
   }
 }
@@ -348,7 +418,8 @@ export async function getCachedProfile(
       verified: row.verified ?? undefined,
       displayName: row.display_name ?? undefined,
     };
-  } catch {
+  } catch (err) {
+    handleDbError("getCachedProfile", err);
     return null;
   }
 }
@@ -387,7 +458,7 @@ export async function putCachedProfile(p: CachedProfile & { platform?: string })
       ["platform", "platform_account_id"],
     );
   } catch (err) {
-    console.warn("[brand.server] putCachedProfile failed:", err);
+    handleDbError("putCachedProfile", err);
   }
 }
 
@@ -436,7 +507,7 @@ export async function listInfluencerMessages(
 
     return messages.sort((a, b) => a.sentAt.localeCompare(b.sentAt));
   } catch (err) {
-    console.warn("[brand.server] listInfluencerMessages failed:", err);
+    handleDbError("listInfluencerMessages", err);
     return [];
   }
 }
@@ -459,8 +530,71 @@ export async function findCandidateId(
         .maybeSingle(),
     ) as { id: string } | null;
     return row?.id ?? null;
-  } catch {
+  } catch (err) {
+    handleDbError("findCandidateId", err);
     return null;
+  }
+}
+
+/**
+ * Find-or-create the influencer_candidate for (store_id, handle) — the CRM
+ * guarantee that any creator we DM lands on the Influencers tab. Returns the
+ * candidate id, or null when Butterbase isn't configured / on failure.
+ *
+ * A candidate created here wasn't ranked by discovery, so it has no
+ * score/rationale; it's a contact we engaged, so it starts at status
+ * 'contacted'. Follower/pk are best-effort enriched from the social_account
+ * profile cache (followers don't expire, so we accept any cached age). Never
+ * throws — on a lost insert race we re-resolve by handle.
+ */
+export async function ensureCandidate(
+  bb: Bb,
+  storeId: string,
+  handle: string,
+  extras?: { platform?: string; pk?: string | null; followers?: number | null },
+): Promise<string | null> {
+  const clean = (handle ?? "").replace(/^@/, "").trim();
+  if (!clean) return null;
+
+  const existing = await findCandidateId(bb, storeId, clean);
+  if (existing) return existing;
+
+  let followers = extras?.followers ?? null;
+  let pk = extras?.pk ?? null;
+  if (followers == null || !pk) {
+    const cached = await getCachedProfile(clean, Number.MAX_SAFE_INTEGER);
+    if (cached) {
+      followers = followers ?? cached.followers ?? null;
+      pk = pk ?? cached.pk ?? null;
+    }
+  }
+
+  try {
+    const row = await insertReturning<{ id: string }>(
+      bb,
+      "influencer_candidate",
+      {
+        store_id: storeId,
+        platform: extras?.platform ?? "instagram",
+        handle: clean,
+        platform_pk: pk,
+        followers,
+        score: null,
+        rationale: "",
+        status: "contacted",
+      },
+      "id",
+    );
+    return row.id;
+  } catch (err) {
+    // Known DB-unavailable: suppress to a one-time warning, give up quietly.
+    if (isDbUnavailableError(err)) {
+      handleDbError("ensureCandidate", err);
+      return null;
+    }
+    console.warn("[brand.server] ensureCandidate insert failed:", err);
+    // Likely a unique-ish race with a concurrent send — resolve again.
+    return findCandidateId(bb, storeId, clean);
   }
 }
 
@@ -500,7 +634,7 @@ export async function recordOutreach(
       body: opts.body,
     });
     if (msg.error) {
-      console.warn("[brand.server] outreach_message insert failed:", msg.error);
+      handleDbError("recordOutreach (message insert)", msg.error);
     }
 
     // Flip candidate status to 'contacted' (best-effort).
@@ -511,8 +645,46 @@ export async function recordOutreach(
 
     return thread.id;
   } catch (err) {
-    console.warn("[brand.server] recordOutreach error:", err);
+    handleDbError("recordOutreach", err);
     return null;
+  }
+}
+
+/**
+ * One-stop CRM write for a completed outreach, shared by every DM entry point
+ * (the /api/outreach route and the chat agent's send_dm tool) so the
+ * "every creator we DM appears on the Influencers tab" guarantee can't depend
+ * on which path ran. Find-or-creates the candidate, then records the thread +
+ * outbound message. A blocked send (needsConnection) reached no one, so nothing
+ * is written. Best-effort: resolves silently on any failure, never throws.
+ */
+export async function persistOutreach(
+  storeId: string | undefined,
+  handle: string,
+  result: {
+    message?: string;
+    channel?: string;
+    threadId?: string;
+    delivered?: boolean;
+    needsConnection?: unknown;
+  },
+): Promise<void> {
+  if (!storeId || !result.message || result.needsConnection) return;
+  const bb = tryCreateBb();
+  if (!bb) return;
+  try {
+    const candidateId = await ensureCandidate(bb, storeId, handle);
+    if (!candidateId) return;
+    await recordOutreach(bb, {
+      storeId,
+      candidateId,
+      body: result.message,
+      channel: result.channel,
+      igThreadId: result.threadId,
+      delivered: result.delivered,
+    });
+  } catch (err) {
+    handleDbError("persistOutreach", err);
   }
 }
 

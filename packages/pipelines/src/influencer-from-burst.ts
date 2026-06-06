@@ -85,25 +85,6 @@ function brandCandidates(brand: BrandOnboarding): string[] {
   return out.filter(Boolean);
 }
 
-// VieBeauti's REAL Amazon ASINs — confirmed via Keepa Product Finder
-// (resolveBrand "viebeauti") + /product history (each has hundreds–thousands of
-// daily sales-rank points), so this demo brand ALWAYS renders a real chart.
-const VIEBEAUTI_ASINS = [
-  "B07R69YCX4", // VieBeauti Premium Eyelash Growth Serum (2-pack) — flagship, ~15.5k rank pts
-  "B0FBT2D135", // VieBeauti Lash Serum for Eyelash Growth (3mL)
-  "B0FWKLSTRP", // VieBeauti Eyelash Growth Serum 5mL
-  "B0D1W32R2K", // VieBeauti Premium Eyelash Growth Serum
-  "B085WBZNFR", // VieBeauti Eyebrow Growth Serum 3mL
-];
-
-/** True when the onboarded brand is the pinned VieBeauti demo brand. */
-function isViebeauti(brand: BrandOnboarding): boolean {
-  const url = (brand.homepageUrl ?? "").toLowerCase();
-  if (url.includes("viebeauti")) return true;
-  const da = deAffix(brand.brand || "");
-  return da === "viebeauti" || da === "viebeauty" || da === "vie";
-}
-
 /* ----------------------------- Instagram I/O ----------------------------- */
 
 interface IgPost { id: string; handle: string; takenMs: number; views: number; likes: number; comments: number; caption: string; url: string; isPaid: boolean; thumbnailUrl?: string; videoUrl?: string; avatarUrl?: string; }
@@ -281,17 +262,6 @@ export async function findInfluencersFromBurst(opts: {
     const subject = opts.brand.brand || "the brand";
     const limit = opts.asinsPerCompetitor ?? 10;
     emit(`Pulling ${subject}'s real Amazon sales-rank history…`);
-
-    // 0) PINNED demo brand: VieBeauti always renders a real chart from its known
-    //    real Amazon ASINs (no resolveBrand round-trip needed).
-    if (isViebeauti(opts.brand)) {
-      const best = await strongestBurst(keepa, subject, VIEBEAUTI_ASINS.slice(0, limit), emit);
-      if (best) {
-        emit(`${subject} on Amazon: "${best.productTitle.slice(0, 40)}" — rank #${best.rankFrom.toLocaleString()} → #${best.rankTo.toLocaleString()} on ${best.date}.`);
-        return { burst: best, influencers: [] };
-      }
-      // else fall through to the generic resolution path below
-    }
 
     // 1) Prefer onboarded seed ASINs (fast, no extra Keepa call).
     let asins = (opts.brand.seedAsins ?? []).map((a) => String(a).trim()).filter(Boolean).slice(0, limit);

@@ -130,41 +130,6 @@ function brandHashtags(brand: BrandOnboarding): string[] {
   return tags.slice(0, 2);
 }
 
-/* --------------------------- viebeauti demo pin -------------------------- */
-
-/** Detect the curated demo brand "viebeauti" (case-insensitive). */
-function isViebeauti(brand: BrandOnboarding): boolean {
-  const url = (brand.homepageUrl || "").toLowerCase();
-  if (url.includes("viebeauti")) return true;
-  const name = deAffix(slug(brand.brand || ""));
-  return ["viebeauti", "viebeauty", "vie"].includes(name);
-}
-
-// VIE Beauty's REAL Instagram presence (confirmed via WebSearch):
-//   handle: @viebeauti.official   tag: #viebeauti
-const VIEBEAUTI_TAGS = ["viebeauti", "viebeautiofficial"];
-
-// Curated fallback shortlist for viebeauti — REAL, well-known beauty/skincare
-// creator handles (confirmed live on instagram.com via WebSearch) so avatars
-// resolve. Used only when the live reel search returns < 3 on-brand creators.
-const VIEBEAUTI_CURATED: ReadonlyArray<{ handle: string; followers?: number; note: string }> = [
-  { handle: "hyram", followers: 1_400_000, note: "Skincare-focused reviewer" },
-  { handle: "susanyara", followers: 400_000, note: "Skincare educator (Mixed Makeup)" },
-  { handle: "glowwithava", followers: 940_000, note: "Skincare & glow creator" },
-  { handle: "carolinehirons", followers: 790_000, note: "Skincare authority" },
-  { handle: "daralevitan", followers: 144_000, note: "Beauty & makeup creator" },
-  { handle: "james_s_welsh", followers: 200_000, note: "Skincare ingredient reviewer" },
-];
-
-function curatedViebeauti(brandName: string): InfluencerSuggestion[] {
-  return VIEBEAUTI_CURATED.map((c, i) => ({
-    handle: c.handle,
-    platform: "instagram",
-    followers: c.followers,
-    score: Math.round((0.9 - i * 0.05) * 100) / 100,
-    rationale: `${c.note} — strong fit for ${brandName}.`,
-  }));
-}
 
 // Tier C cache: short-lived in-memory results keyed by the primary brand hashtag,
 // so repeated discoveries of the same brand (e.g. while iterating/testing) don't
@@ -299,16 +264,12 @@ export async function findBrandReelInfluencers(opts: {
     return { influencers: [] };
   }
 
-  // viebeauti is a pinned demo brand: use its REAL hashtags, and guarantee a
-  // solid shortlist via a curated fallback if the live search comes up short.
-  const pinned = isViebeauti(opts.brand);
-  const tags = pinned ? VIEBEAUTI_TAGS.slice(0, 2) : brandHashtags(opts.brand);
+  const tags = brandHashtags(opts.brand);
   if (!tags.length) {
     emit("Couldn't derive a brand hashtag.");
     return { influencers: [] };
   }
   const brandName = opts.brand.brand || tags[0]!;
-  if (pinned) emit(`Recognized ${brandName} — searching its real IG tag #${tags[0]} (@viebeauti.official).`);
 
   // Tier C: serve a recent cached result for this hashtag — zero Apify spend.
   const cacheKey = tags[0]!;
@@ -335,12 +296,6 @@ export async function findBrandReelInfluencers(opts: {
     }
   }
   if (!reels.length) {
-    if (pinned) {
-      emit(`No live reels for ${brandName} — using a curated beauty-creator shortlist.`);
-      const curated = curatedViebeauti(brandName);
-      reelCache.set(tags[0]!, { at: Date.now(), influencers: curated });
-      return { influencers: curated };
-    }
     emit(`No Instagram reels found for ${brandName}.`);
     return { influencers: [] };
   }
@@ -385,25 +340,6 @@ export async function findBrandReelInfluencers(opts: {
       avatarUrl: r.avatarUrl,
     };
   });
-
-  // viebeauti pin: guarantee a solid 6-creator shortlist. If the live search
-  // surfaced fewer than 3 genuinely on-brand creators, fall back to the curated
-  // list of real beauty creators (so the demo always looks strong).
-  if (pinned) {
-    const onBrandHandles = new Set(onTopic.map((r) => r.handle));
-    const liveOnBrand = influencers.filter((inf) => onBrandHandles.has(inf.handle));
-    if (liveOnBrand.length < 3) {
-      emit(`Only ${liveOnBrand.length} on-brand live creators — blending in a curated beauty-creator shortlist.`);
-      const merged: InfluencerSuggestion[] = [...liveOnBrand];
-      const have = new Set(merged.map((m) => m.handle));
-      for (const c of curatedViebeauti(brandName)) {
-        if (merged.length >= 6) break;
-        if (!have.has(c.handle)) { merged.push(c); have.add(c.handle); }
-      }
-      reelCache.set(cacheKey, { at: Date.now(), influencers: merged });
-      return { influencers: merged };
-    }
-  }
 
   // Tier C: cache this hashtag's result so repeat runs skip Apify entirely.
   if (influencers.length) reelCache.set(cacheKey, { at: Date.now(), influencers });
